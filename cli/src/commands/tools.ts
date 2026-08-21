@@ -1,5 +1,5 @@
-import path from "node:path";
 import { getRecord, type Env } from "../core/context.js";
+import { depHint, missingDeps, runTool } from "../core/deps.js";
 
 /**
  * Tool passthroughs: `wt npm <name> …`, `wt artisan <name> …`, `wt wp <name> …`, etc.
@@ -16,16 +16,14 @@ export type Tool = (typeof TOOLS)[number];
 
 export async function cmdTool(env: Env, tool: Tool, name: string, args: string[]) {
   const r = getRecord(env, name);
-  let out;
-  if (r.level >= 2) {
-    out = await env.run("ddev", [tool, ...args], { cwd: r.path, allowFail: true });
-  } else {
-    const inContainer = path.posix.join("/var/www/html", path.relative(env.repoRoot, r.path));
-    // `artisan` is a DDEV shortcut for `php artisan`; inside exec we spell it out.
-    const cmd = tool === "artisan" ? ["php", "artisan", ...args] : [tool, ...args];
-    out = await env.run("ddev", ["exec", "--dir", inContainer, ...cmd], { cwd: env.repoRoot, allowFail: true });
-  }
+  const out = await runTool(env.run, env.repoRoot, r, tool, args);
   process.stdout.write(out.stdout);
   process.stderr.write(out.stderr);
+  // A missing vendor/ or node_modules/ fails deep inside the tool ("failed to open
+  // stream: … autoload.php"), which reads as a broken worktree. Say what it actually is.
+  if (out.exitCode !== 0) {
+    const missing = missingDeps(r, env.adapters);
+    if (missing.length) process.stderr.write(depHint(r, missing) + "\n");
+  }
   process.exitCode = out.exitCode;
 }

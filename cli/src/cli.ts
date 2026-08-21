@@ -43,9 +43,10 @@ program.command("new <branch>")
   .option("--media <strategy>", "symlink | copy | none")
   .option("--name <slug>", "override DDEV project / directory name")
   .option("--no-start", "create worktree + config but do not start containers")
+  .option("--install", "run composer install / npm ci in the new worktree (minutes on a large repo)")
   .option("--pool", "require claiming from the warm pool (fail if none)")
   .option("--no-pool", "never claim from the warm pool")
-  .action(wrap(async (branch, o) => cmdNew(await loadEnv(g()), branch, { from: o.from, level: o.level, task: o.task, db: o.db, media: o.media, noStart: o.start === false, name: o.name, pool: o.pool === true, noPool: o.pool === false })));
+  .action(wrap(async (branch, o) => cmdNew(await loadEnv(g()), branch, { from: o.from, level: o.level, task: o.task, db: o.db, media: o.media, noStart: o.start === false, name: o.name, pool: o.pool === true, noPool: o.pool === false, install: o.install })));
 
 program.command("promote <name>").description("change isolation level / media mode in place")
   .option("-l, --level <n>", "target level", (v) => Number(v))

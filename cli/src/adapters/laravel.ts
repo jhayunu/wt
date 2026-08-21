@@ -15,6 +15,8 @@ export const laravel: Adapter = {
   // Level 0/1 shares main's database and URL, so it wants main's .env verbatim. Without
   // one, Laravel falls back to APP_ENV=production and boots into production guards.
   sharedFiles: () => [".env"],
+  treeMarker: () => "artisan",
+  dependencies: () => [{ marker: "vendor/autoload.php", tool: "composer", args: ["install", "--no-scripts", "--no-interaction"] }],
   defaultChangeProviders: () => ["laravel-migrations", "snapshot-diff"],
 
   ddevOverrides(ctx) {

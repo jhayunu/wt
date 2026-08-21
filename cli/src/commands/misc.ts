@@ -7,6 +7,7 @@ import { saveManifest } from "../core/config.js";
 import { ctxFor, emit, getRecord, type Env } from "../core/context.js";
 import { EXIT, LEVEL_NAMES, WtError } from "../core/types.js";
 import { assertCanDestroy, isOwner } from "../core/policy.js";
+import { depHint, missingDeps, runTool } from "../core/deps.js";
 
 export async function cmdLs(env: Env) {
   const live = await ddevList(env.run);
@@ -27,15 +28,13 @@ export async function cmdUrl(env: Env, name: string) {
 
 export async function cmdExec(env: Env, name: string, args: string[]) {
   const r = getRecord(env, name);
-  if (r.level >= 2) {
-    const out = await env.run("ddev", ["exec", ...args], { cwd: r.path, allowFail: true });
-    process.stdout.write(out.stdout); process.stderr.write(out.stderr); process.exitCode = out.exitCode;
-  } else {
-    // level 0/1: borrow main's web container; worktree lives under main's mount so the path is reachable
-    const inContainer = path.posix.join("/var/www/html", path.relative(env.repoRoot, r.path));
-    const out = await env.run("ddev", ["exec", "--dir", inContainer, ...args], { cwd: env.repoRoot, allowFail: true });
-    process.stdout.write(out.stdout); process.stderr.write(out.stderr); process.exitCode = out.exitCode;
+  const out = await runTool(env.run, env.repoRoot, r, null, args);
+  process.stdout.write(out.stdout); process.stderr.write(out.stderr);
+  if (out.exitCode !== 0) {
+    const missing = missingDeps(r, env.adapters);
+    if (missing.length) process.stderr.write(depHint(r, missing) + "\n");
   }
+  process.exitCode = out.exitCode;
 }
 
 export async function cmdUp(env: Env, name: string) {

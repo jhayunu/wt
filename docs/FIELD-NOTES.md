@@ -189,16 +189,35 @@ worktrees.
 **F14 — `wt new` returned before the container could see the tree.** On Mutagen-synced
 projects the host checkout exists immediately but the web container does not see it for
 several seconds; the very next `wt composer …` failed with "no such file or directory".
-- Fix: `planner.ts stepAwaitContainerSync` polls `ddev exec --dir <path> test -e .git`
-  (up to 120 s, `optional`) before `wt new` returns. It logged "synced" on the re-run,
-  so it does wait rather than pass through.
+- Fix: `planner.ts stepAwaitContainerSync` polls before `wt new` returns (120 s cap,
+  `optional`). It logged "synced" on the re-run, so it does wait rather than pass through.
+- Amended the same day: polling for `.git` alone was not enough. It is one small file and
+  lands ahead of the checkout, so the very next call still failed with "Could not open
+  input file: artisan". Adapters now declare a `treeMarker()` (Laravel `artisan`, React
+  `package.json`, WordPress `wp-config.php`, Drupal `web/core/lib/Drupal.php`) and the
+  step waits for all of them. Re-verified in ppm: `wt exec … ls artisan package.json`
+  immediately after `wt new` lists both.
 
-**F15 (open) — a level-1 worktree still needs its dependencies installed by hand.**
-`vendor/` and `node_modules/` are not in git and nothing installs them. `next_steps` now
-says so, but an agent that skips reading it hits an autoload error. Options: run
-`composer install --no-scripts` as a creation step (costs minutes on a big repo, and
-another few thousand files through the sync), or make the tool passthroughs detect a
-missing `vendor/autoload.php` and say what to run. Decide before this is used in anger.
+**F15 — a worktree still needs its dependencies installed, and the failure did not say so.**
+`vendor/` and `node_modules/` are not in git. Without them the error is
+"Could not open input file: artisan" or a failed autoload require — which reads as a
+broken worktree, not a missing install.
+
+Resolved by naming it rather than by installing automatically: on a large repo an
+unconditional `composer install` costs minutes and pushes thousands of files through the
+sync, and plenty of tasks never boot the app.
+
+- Adapters declare `dependencies()` (marker + the command that creates it).
+- `wt new` ends with a `hint:` line naming exactly what is missing, in the same
+  `wt <tool> <name> -- …` form the agent already uses.
+- Any tool passthrough that exits non-zero with a marker missing appends the same hint.
+- `wt new --install` runs them at creation for anyone who wants it — after the sync wait
+  at level 1, after `ddev start` at level 2+ (`ddev composer` needs the containers up).
+
+Open question for Run 2: at level ≥ 2 the post-start hooks (`php artisan migrate --force`,
+`storage:link`) run before any install, so they will fail on a fresh worktree unless
+`--install` was passed. Either make `--install` the default at level ≥ 2, or move the
+hooks behind a dependency check.
 
 **Not yet observed (needs a level ≥ 2 run):** snapshot copy + restore across projects,
 media symlink/proxy, pool claim, `wt db diff/export`. Everything in "Verified DDEV facts"

@@ -95,6 +95,10 @@ export interface Adapter {
   requiredDirs?(): string[];
   /** Files copied verbatim from main into a level 0/1 worktree, which gets no generated env files. */
   sharedFiles?(): string[];
+  /** A tracked file at the tree's root, used to tell when a worktree has finished syncing into the container. */
+  treeMarker?(): string;
+  /** Dependency trees git does not carry — marker path plus the command that creates it. */
+  dependencies?(): { marker: string; tool: string; args: string[] }[];
   envFiles(ctx: Ctx): Promise<Record<string, string>>;   // relPath -> content
   postStart(ctx: Ctx): Promise<void>;
   healthCheck(ctx: Ctx): Promise<{ ok: boolean; detail: string }>;

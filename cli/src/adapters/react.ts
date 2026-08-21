@@ -14,6 +14,8 @@ export const react: Adapter = {
     return ["react", "next", "vite"].some((d) => d in deps);
   },
   mediaPaths: () => [],
+  treeMarker: () => "package.json",
+  dependencies: () => [{ marker: "node_modules", tool: "npm", args: ["ci"] }],
   defaultChangeProviders: () => [],
 
   ddevOverrides(ctx) {

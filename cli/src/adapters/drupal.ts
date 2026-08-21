@@ -15,6 +15,8 @@ export const drupal: Adapter = {
     return ["web/core/lib/Drupal.php", "docroot/core/lib/Drupal.php", "core/lib/Drupal.php"].some((p) => existsSync(path.join(root, p)));
   },
   mediaPaths: () => ["web/sites/default/files"],
+  treeMarker: () => "web/core/lib/Drupal.php",
+  dependencies: () => [{ marker: "vendor/autoload.php", tool: "composer", args: ["install", "--no-scripts", "--no-interaction"] }],
   defaultChangeProviders: () => ["snapshot-diff"],
 
   ddevOverrides(ctx) {

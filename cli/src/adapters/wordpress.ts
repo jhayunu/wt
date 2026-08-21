@@ -10,6 +10,7 @@ export const wordpress: Adapter = {
     return ["wp-config.php", "wp-content", "web/wp-config.php", "public/wp-config.php"].some((p) => existsSync(path.join(root, p)));
   },
   mediaPaths: () => ["wp-content/uploads"],
+  treeMarker: () => "wp-config.php",
   defaultChangeProviders: () => ["wp-changeset", "snapshot-diff"],
 
   ddevOverrides(ctx) {

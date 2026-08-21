@@ -7,6 +7,7 @@ import { clampLevel } from "./config.js";
 import { ddev, ddevStatus } from "./ddev.js";
 import { branchExists } from "./git.js";
 import { urlFor } from "./ddevconfig.js";
+import { declaredDeps, missingDeps, runTool } from "./deps.js";
 import { EXIT, WtError } from "./types.js";
 
 /** §5 — level = max(framework floor, task hints, explicit), clamped by policy. */
@@ -224,9 +225,13 @@ export function stepPrepareTree(ctx: Ctx, adapters: Adapter[]): Step | null {
  * "no such file or directory". Wait for the tree to land instead of handing the agent
  * a confusing error.
  */
-export function stepAwaitContainerSync(ctx: Ctx, timeoutMs = 120_000): Step {
+export function stepAwaitContainerSync(ctx: Ctx, adapters: Adapter[] = [], timeoutMs = 120_000): Step {
   const { rec, repoRoot } = ctx;
   const inContainer = path.posix.join("/var/www/html", path.relative(repoRoot, rec.path));
+  // `.git` alone is not enough: it is one small file and lands before the rest of the
+  // checkout, which produced "Could not open input file: artisan" seconds after wt
+  // reported the worktree ready. Wait for each framework's own root file too.
+  const markers = [".git", ...new Set(adapters.map((a) => a.treeMarker?.()).filter((m): m is string => !!m))];
   return {
     title: `wait for ${inContainer} to sync into main's web container`,
     async up(c) {
@@ -234,9 +239,7 @@ export function stepAwaitContainerSync(ctx: Ctx, timeoutMs = 120_000): Step {
       const deadline = Date.now() + timeoutMs;
       let waited = false;
       for (;;) {
-        // `.git` exists in every worktree (a file pointing at the main repo), so it is
-        // the one marker that does not depend on the framework.
-        const r = await c.run("ddev", ["exec", "--dir", inContainer, "test", "-e", ".git"], { cwd: repoRoot, allowFail: true });
+        const r = await c.run("ddev", ["exec", "--dir", inContainer, "sh", "-c", markers.map((m) => `test -e '${m}'`).join(" && ")], { cwd: repoRoot, allowFail: true });
         if (r.exitCode === 0) { if (waited) c.log("  synced"); return; }
         if (Date.now() > deadline) throw new Error(`still not visible in the container after ${Math.round(timeoutMs / 1000)}s — is main running, and is this project Mutagen-synced?`);
         waited = true;
@@ -244,6 +247,25 @@ export function stepAwaitContainerSync(ctx: Ctx, timeoutMs = 120_000): Step {
       }
     },
     // A failure here means tooling will be slow to work, not that the worktree is broken.
+    optional: true,
+  };
+}
+
+/** Opt-in: `wt new --install`. Costs minutes on a large repo, so it is never the default. */
+export function stepInstallDeps(ctx: Ctx, adapters: Adapter[]): Step | null {
+  const deps = declaredDeps(adapters);
+  if (!deps.length) return null;
+  return {
+    title: `install dependencies (${deps.map((d) => d.marker.split("/")[0]).join(", ")})`,
+    async up(c) {
+      if (c.dryRun) return;
+      for (const d of missingDeps(c.rec, adapters)) {
+        c.log(`  ${d.tool} ${d.args.join(" ")}`);
+        const r = await runTool(c.run, c.repoRoot, c.rec, d.tool, d.args);
+        if (r.exitCode !== 0) throw new Error(`${d.tool} ${d.args.join(" ")} failed: ${(r.stderr || r.stdout).split("\n").filter(Boolean).slice(-2).join(" ")}`);
+      }
+    },
+    // The worktree is still usable without them; the agent just has to run the install itself.
     optional: true,
   };
 }
@@ -272,17 +294,22 @@ export function stepsEnvironment(ctx: Ctx, adapters: Adapter[], providers: DbCha
 
 // ---------------------------------------------------------------------------
 
-export function planNew(ctx: Ctx, adapters: Adapter[], providers: DbChangeProvider[], opts: { from: string; start: boolean }): Step[] {
+export function planNew(ctx: Ctx, adapters: Adapter[], providers: DbChangeProvider[], opts: { from: string; start: boolean; install?: boolean }): Step[] {
   const { rec } = ctx;
   const steps: Step[] = [stepWorktreeAdd(ctx, opts.from)];
   const prep = stepPrepareTree(ctx, adapters); if (prep) steps.push(prep);
+  const install = opts.install ? stepInstallDeps(ctx, adapters) : null;
   if (rec.level === 0) return steps;
   if (rec.level === 1) {
     steps.push({ title: "level 1: no containers; `wt npm|composer|artisan|wp <name> …` run in main's web container", async up() {} });
-    steps.push(stepAwaitContainerSync(ctx));
+    steps.push(stepAwaitContainerSync(ctx, adapters));
+    // after the sync wait: the container has to see the tree before it can install into it
+    if (install) steps.push(install);
     return steps;
   }
-  return [...steps, ...stepsEnvironment(ctx, adapters, providers, opts.start)];
+  const env = stepsEnvironment(ctx, adapters, providers, opts.start);
+  // after start: `ddev composer` needs the worktree's own containers up
+  return install ? [...steps, ...env, install] : [...steps, ...env];
 }
 
 /** In-place level change. Supported: 0/1→2+, 2↔3 (media swap), any→media mode change. */

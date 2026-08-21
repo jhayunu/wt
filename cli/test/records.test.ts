@@ -45,3 +45,29 @@ test("loadRepoConfig takes main/tld from .ddev/config.yaml, and .wt.yml wins ove
   await writeFile(path.join(root, ".wt.yml"), "main: explicit\n");
   assert.equal((await loadRepoConfig(root)).main, "explicit");
 });
+
+import { declaredDeps, depHint, missingDeps, toolArgv } from "../src/core/deps.js";
+import { laravel } from "../src/adapters/laravel.js";
+import { react } from "../src/adapters/react.js";
+
+test("toolArgv routes by level: own project vs main's container", () => {
+  const l1 = { level: 1, path: "/repo/.wt/worktrees/x" } as any;
+  const l2 = { level: 2, path: "/repo/.wt/worktrees/x" } as any;
+  assert.deepEqual(toolArgv("/repo", l2, "composer", ["install"]), { argv: ["composer", "install"], cwd: "/repo/.wt/worktrees/x" });
+  assert.deepEqual(toolArgv("/repo", l1, "composer", ["install"]),
+    { argv: ["exec", "--dir", "/var/www/html/.wt/worktrees/x", "composer", "install"], cwd: "/repo" });
+  // `artisan` is a ddev shortcut; inside exec it has to be spelled out
+  assert.deepEqual(toolArgv("/repo", l1, "artisan", ["migrate"]).argv.slice(3), ["php", "artisan", "migrate"]);
+  assert.deepEqual(toolArgv("/repo", l1, null, ["ls"]).argv, ["exec", "--dir", "/var/www/html/.wt/worktrees/x", "ls"]);
+});
+
+test("dependencies: a fresh worktree reports what git did not carry", () => {
+  const adapters = [laravel, react] as any;
+  assert.deepEqual(declaredDeps(adapters).map((d) => d.marker), ["vendor/autoload.php", "node_modules"]);
+  const rec = { name: "feat-x", path: "/nonexistent/worktree", level: 1 } as any;
+  const missing = missingDeps(rec, adapters);
+  assert.equal(missing.length, 2, "nothing is installed in a path that does not exist");
+  const hint = depHint(rec, missing);
+  assert.match(hint, /wt composer feat-x -- install --no-scripts/);
+  assert.match(hint, /wt npm feat-x -- ci/);
+});
