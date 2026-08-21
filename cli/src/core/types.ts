@@ -91,6 +91,10 @@ export interface Adapter {
   /** YAML object merged into .ddev/config.wt.local.yaml */
   ddevOverrides(ctx: Ctx): Record<string, unknown>;
   mediaPaths(): string[];
+  /** Directories the framework needs that git does not carry (gitignored, so `git worktree add` omits them). */
+  requiredDirs?(): string[];
+  /** Files copied verbatim from main into a level 0/1 worktree, which gets no generated env files. */
+  sharedFiles?(): string[];
   envFiles(ctx: Ctx): Promise<Record<string, string>>;   // relPath -> content
   postStart(ctx: Ctx): Promise<void>;
   healthCheck(ctx: Ctx): Promise<{ ok: boolean; detail: string }>;

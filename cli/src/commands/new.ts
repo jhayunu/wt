@@ -78,6 +78,7 @@ export async function cmdNew(env: Env, branch: string, o: NewOpts) {
     const next = [
       `cd ${rec.path}`,
       level >= 2 ? `wt wp|artisan|npm|composer ${name} …   # tools run inside this worktree's containers` : `wt npm|composer|artisan ${name} …   # runs in main's web container`,
+      `wt composer ${name} -- install --no-scripts   # a fresh worktree has no vendor/ (same for npm ci / node_modules)`,
       level >= 2 ? `wt db diff ${name}   # before opening a PR, then: wt db export ${name}` : "",
       `wt destroy ${name}   # when done`,
     ].filter(Boolean);

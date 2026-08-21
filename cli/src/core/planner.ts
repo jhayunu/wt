@@ -188,6 +188,66 @@ export function stepStart(ctx: Ctx, adapters: Adapter[]): Step {
   };
 }
 
+/**
+ * `git worktree add` gives you exactly what git tracks — which is not a runnable
+ * checkout. Gitignored-but-required directories are missing, and at level 0/1 nothing
+ * else ever writes an env file. Both failures surface far from their cause (an artisan
+ * call dying inside the container), so fix them at creation.
+ */
+export function stepPrepareTree(ctx: Ctx, adapters: Adapter[]): Step | null {
+  const { rec, repoRoot } = ctx;
+  const dirs = [...new Set(adapters.flatMap((a) => a.requiredDirs?.() ?? []))];
+  const shared = rec.level < 2 ? [...new Set(adapters.flatMap((a) => a.sharedFiles?.() ?? []))] : [];
+  if (!dirs.length && !shared.length) return null;
+  return {
+    title: `prepare tree (${[...dirs, ...shared].join(", ")})`,
+    async up(c) {
+      if (c.dryRun) return;
+      for (const d of dirs) await mkdir(path.join(rec.path, d), { recursive: true });
+      for (const f of shared) {
+        const src = path.join(repoRoot, f), dst = path.join(rec.path, f);
+        if (!existsSync(src)) { c.log(`  skip ${f} (not in main)`); continue; }
+        if (existsSync(dst)) continue;
+        await cp(src, dst);
+        if (!rec.createdFiles.includes(dst)) rec.createdFiles.push(dst);
+      }
+    },
+    optional: true,
+  };
+}
+
+/**
+ * Level 0/1 tooling runs in *main's* container, at the worktree's path under the
+ * project mount. `git worktree add` returns as soon as the host checkout is written,
+ * but on a Mutagen-synced project (macOS/Windows) the container cannot see those files
+ * for another few seconds — long enough that the very next `wt composer …` fails with
+ * "no such file or directory". Wait for the tree to land instead of handing the agent
+ * a confusing error.
+ */
+export function stepAwaitContainerSync(ctx: Ctx, timeoutMs = 120_000): Step {
+  const { rec, repoRoot } = ctx;
+  const inContainer = path.posix.join("/var/www/html", path.relative(repoRoot, rec.path));
+  return {
+    title: `wait for ${inContainer} to sync into main's web container`,
+    async up(c) {
+      if (c.dryRun) return;
+      const deadline = Date.now() + timeoutMs;
+      let waited = false;
+      for (;;) {
+        // `.git` exists in every worktree (a file pointing at the main repo), so it is
+        // the one marker that does not depend on the framework.
+        const r = await c.run("ddev", ["exec", "--dir", inContainer, "test", "-e", ".git"], { cwd: repoRoot, allowFail: true });
+        if (r.exitCode === 0) { if (waited) c.log("  synced"); return; }
+        if (Date.now() > deadline) throw new Error(`still not visible in the container after ${Math.round(timeoutMs / 1000)}s — is main running, and is this project Mutagen-synced?`);
+        waited = true;
+        await new Promise((res) => setTimeout(res, 2000));
+      }
+    },
+    // A failure here means tooling will be slow to work, not that the worktree is broken.
+    optional: true,
+  };
+}
+
 export function stepBaseline(ctx: Ctx, providers: DbChangeProvider[]): Step {
   const { rec, cfg } = ctx;
   return {
@@ -215,8 +275,13 @@ export function stepsEnvironment(ctx: Ctx, adapters: Adapter[], providers: DbCha
 export function planNew(ctx: Ctx, adapters: Adapter[], providers: DbChangeProvider[], opts: { from: string; start: boolean }): Step[] {
   const { rec } = ctx;
   const steps: Step[] = [stepWorktreeAdd(ctx, opts.from)];
+  const prep = stepPrepareTree(ctx, adapters); if (prep) steps.push(prep);
   if (rec.level === 0) return steps;
-  if (rec.level === 1) { steps.push({ title: "level 1: no containers; `wt npm|composer|artisan|wp <name> …` run in main's web container", async up() {} }); return steps; }
+  if (rec.level === 1) {
+    steps.push({ title: "level 1: no containers; `wt npm|composer|artisan|wp <name> …` run in main's web container", async up() {} });
+    steps.push(stepAwaitContainerSync(ctx));
+    return steps;
+  }
   return [...steps, ...stepsEnvironment(ctx, adapters, providers, opts.start)];
 }
 

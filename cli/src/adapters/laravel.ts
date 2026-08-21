@@ -9,6 +9,12 @@ export const laravel: Adapter = {
   floorLevel: () => 1, // escalated to 2 by migration hints / paths
   async detect(root) { return existsSync(path.join(root, "artisan")); },
   mediaPaths: () => ["storage/app/public"],
+  // `bootstrap/cache` is gitignored in most Laravel repos, so a fresh worktree lacks it
+  // and every artisan call dies with "directory must be present and writable".
+  requiredDirs: () => ["bootstrap/cache", "storage/framework/cache/data", "storage/framework/sessions", "storage/framework/views", "storage/logs"],
+  // Level 0/1 shares main's database and URL, so it wants main's .env verbatim. Without
+  // one, Laravel falls back to APP_ENV=production and boots into production guards.
+  sharedFiles: () => [".env"],
   defaultChangeProviders: () => ["laravel-migrations", "snapshot-diff"],
 
   ddevOverrides(ctx) {

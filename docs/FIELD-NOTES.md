@@ -143,7 +143,75 @@ Still unverified after this audit (needs Run 1): that a snapshot file copied bet
 projects actually restores; `ddev exec --dir` paths under Mutagen; media `proxy` through
 the router; pool claim renaming.
 
-### Run 1 — <date>, DDEV <version>
+### Run 1 — 2026-08-21, DDEV v1.25.1, lara-pelikan (Laravel 12 + React, "composite"), **level 1 only**
+
+First contact with a real DDEV. Level 1 only: no per-worktree project, no DB clone. The
+repo is Mutagen-synced and large (198,065 files / 4.2 GB), which turned out to matter.
+
+| # | Step | Result | Notes |
+|---|---|---|---|
+| 1 | `/plugin install wt@gitworktrees` | ✗→✓ | shipped non-executable — F11 |
+| 2 | `wt init` | ✓ | wrote `main: lara-pelikan` from `.ddev/config.yaml`, `.gitignore` entries, CLAUDE.md rule |
+| 3 | `wt doctor` | ✓ | all five checks green against a running main |
+| 4 | `wt new wt/smoke --level 1` | ✓ | branch cut from the checked-out branch; ~2 s |
+| 5 | `wt exec` / `wt php` routing | ✓ | `pwd` → `/var/www/html/.wt/worktrees/wt-smoke`, `php -v` → 8.4.18 |
+| 6 | `wt composer … install --no-scripts` | ✓ | 214 packages, ~3 min including sync-back |
+| 7 | `wt artisan … --version` | ✗→✓ | F12, F13 |
+| 8 | main checkout unaffected | ✓ | `ddev artisan --version` → Laravel 12.65.0; main's autoloader untouched |
+| 9 | `wt destroy` ×2 | ✓ | trees, branches and manifest entries all gone |
+
+#### Findings
+
+**F11 — the plugin installs non-executable (fatal, silent).** `bin/wt`, all three
+`scripts/*.sh` and `install.sh` were mode `100644` in git, so every clone and every
+plugin install lands them unrunnable. `commands/wt.md` and all three hooks invoke those
+paths directly, and hooks swallow their own failures — so the symptom is not an error,
+it is the `wt:` context line simply never appearing.
+- Fix: `git update-index --chmod=+x` on all five.
+- Regression: `cli/test/packaging.test.ts` asserts the executable bit on each.
+
+**F12 — a fresh worktree is not a runnable checkout: missing gitignored dirs.**
+`php artisan` died with "The …/bootstrap/cache directory must be present and writable".
+`git worktree add` gives you what git tracks, and `bootstrap/cache` is gitignored in
+most Laravel repos (`storage/framework/*` usually is not — it carries `.gitignore`
+files — but do not rely on that).
+- Fix: `Adapter.requiredDirs?()` + `planner.ts stepPrepareTree`; Laravel declares
+  `bootstrap/cache`, `storage/framework/{cache/data,sessions,views}`, `storage/logs`.
+
+**F13 — level 0/1 worktrees got no `.env` at all.** `envFiles()` only runs inside
+`stepWriteConfig`, which is level ≥ 2. Laravel therefore booted with `APP_ENV`
+defaulting to `production` and hit this project's own production guard
+(`MICROSOFT_AZURE_TENANT_ID must be set…`) — a failure with no visible connection to
+worktrees.
+- Fix: `Adapter.sharedFiles?()` — at level < 2 copy main's `.env` verbatim, which is
+  correct there because level 1 *is* main's environment, just a different tree.
+
+**F14 — `wt new` returned before the container could see the tree.** On Mutagen-synced
+projects the host checkout exists immediately but the web container does not see it for
+several seconds; the very next `wt composer …` failed with "no such file or directory".
+- Fix: `planner.ts stepAwaitContainerSync` polls `ddev exec --dir <path> test -e .git`
+  (up to 120 s, `optional`) before `wt new` returns. It logged "synced" on the re-run,
+  so it does wait rather than pass through.
+
+**F15 (open) — a level-1 worktree still needs its dependencies installed by hand.**
+`vendor/` and `node_modules/` are not in git and nothing installs them. `next_steps` now
+says so, but an agent that skips reading it hits an autoload error. Options: run
+`composer install --no-scripts` as a creation step (costs minutes on a big repo, and
+another few thousand files through the sync), or make the tool passthroughs detect a
+missing `vendor/autoload.php` and say what to run. Decide before this is used in anger.
+
+**Not yet observed (needs a level ≥ 2 run):** snapshot copy + restore across projects,
+media symlink/proxy, pool claim, `wt db diff/export`. Everything in "Verified DDEV facts"
+above about snapshots is still documentation, not experience.
+
+#### Ownership caveat
+
+Records were owned by `jhayar@HQT-F20PJ9QKYH`, not `claude:<session>`: `CLAUDE_SESSION_ID`
+is not exported into the shell Claude Code runs commands in, so the per-agent lease
+degrades to per-user. Ownership still separates humans/machines; it does not separate two
+agents on one machine, which is the case it was written for.
+
+### Run 2 — <date>, DDEV <version> (WordPress, levels 2+)
 
 Steps from `PLAN.md` §2. Record each as ✓ / ✗ + what happened.
 
