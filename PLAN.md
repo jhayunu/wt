@@ -79,7 +79,8 @@ project's snapshot dir.
 3.3 ~~Root `README.md` (short; links to ARCHITECTURE, cli/README, PLAN).~~ **Done.**
 3.4 ~~Root `.gitignore` (`node_modules/`, `dist/`, `*.tgz`).~~ **Done.**
 3.5 ~~Delete stray `cli/skill/` if still present (superseded by `cli/skills/wt/`).~~ **Done** — it was stale (pre-`promote`, pre-passthrough wording); nothing referenced it (`commands/skill.ts` reads `skills/wt`).
-3.6 `git init`, first commit, push to `jhayar/GitWorktrees`; verify `/plugin marketplace add jhayar/GitWorktrees` + `/plugin install wt@gitworktrees` in Claude Code.
+3.6 ~~`git init`, first commit~~ **Done**, pushed to **`jhayunu/GitWorktrees` (private)** — not `jhayar/…`: the `gh` credentials on this machine are `jhayunu` / `jhayiwg`. Repo paths in `README.md`, `cli/README.md`, `cli/install.sh` and `package.json:repository` updated to match; the npm name `@jhayar/wt` is untouched pending §6.1.
+  **Still to verify:** `/plugin marketplace add jhayunu/GitWorktrees` + `/plugin install wt@gitworktrees` in Claude Code. While the repo is private this may only resolve for an authenticated account — if it fails, use `/plugin marketplace add /Users/jhayar/Development/docker/GitWorktrees` (local path) or make the repo public.
 3.7 Tag `v0.2.0`; optionally `npm publish` (`@jhayar/wt`, `publishConfig.access=public`). `package.json` + `cli.ts --version` are now `0.2.0` (were `0.1.0`); resolve §6.1 (npm name) before publishing.
 
 ## 4. Task C — phase 3 backlog (after A passes)

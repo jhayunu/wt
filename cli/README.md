@@ -7,7 +7,7 @@ One command gives a git worktree its own running environment (hostname, containe
 **As a Claude Code plugin (recommended for agents)**
 
 ```
-/plugin marketplace add jhayar/GitWorktrees      # or: /plugin marketplace add /path/to/GitWorktrees
+/plugin marketplace add jhayunu/GitWorktrees      # or: /plugin marketplace add /path/to/GitWorktrees
 /plugin install wt@gitworktrees
 ```
 

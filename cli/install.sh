@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Install wt globally. Usage:
-#   curl -fsSL https://raw.githubusercontent.com/jhayar/wt/main/cli/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/jhayunu/GitWorktrees/main/cli/install.sh | sh
 # or from a local checkout:  sh cli/install.sh
 set -e
 need() { command -v "$1" >/dev/null 2>&1 || { echo "missing: $1"; exit 1; }; }
