@@ -1,12 +1,21 @@
 {
-  "name": "gitworktrees",
-  "owner": { "name": "Jhay" },
+  "name": "jhayunu",
+  "owner": { "name": "Jhay", "url": "https://github.com/jhayunu" },
+  "metadata": {
+    "description": "Isolated, runnable environments for parallel AI agents",
+    "version": "0.2.0"
+  },
   "plugins": [
     {
       "name": "wt",
       "source": "./cli",
-      "description": "Per-worktree DDEV environments for AI agents (WordPress, Laravel, React)",
-      "version": "0.2.0"
+      "description": "Per-worktree DDEV environments for AI agents: every branch gets its own URL, database and media, sized to the task, with database change tracking.",
+      "version": "0.2.0",
+      "author": { "name": "Jhay", "url": "https://github.com/jhayunu" },
+      "homepage": "https://github.com/jhayunu/wt#readme",
+      "license": "MIT",
+      "category": "development",
+      "keywords": ["ddev", "worktree", "wordpress", "drupal", "laravel", "react"]
     }
   ]
 }

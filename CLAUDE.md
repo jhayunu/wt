@@ -1,12 +1,13 @@
-# GitWorktrees / wt — notes for Claude Code
+# wt — notes for Claude Code
 
 ## What this repo is
 `wt`: a CLI + Claude Code plugin that gives every git worktree its own DDEV environment (URL, DB, media) for WordPress, Drupal, Laravel and React, sized by an "isolation level" (0–4), with DB change tracking, ownership leases and a warm pool. Built for AI agents working in parallel.
 
-Start with `PLAN.md` (what to do next) and `ARCHITECTURE.md` (why). `BRAINSTORM.md` is ideas only.
+Read `ARCHITECTURE.md` for why it works this way, and `README.md` for the user-facing surface
+(including the maturity note: levels 0–1 are verified on real DDEV, levels 2–4 only against the shim).
 
 ## Layout
-- `cli/` — the TypeScript package (`@jhayar/wt`) and the plugin root (`cli/.claude-plugin/plugin.json`, `cli/skills/wt/SKILL.md`, `cli/commands/wt.md`, `cli/hooks/hooks.json`, `cli/scripts/*.sh`, `cli/bin/wt`).
+- `cli/` — the TypeScript package (`@jhayunu/wt`) and the plugin root (`cli/.claude-plugin/plugin.json`, `cli/skills/wt/SKILL.md`, `cli/commands/wt.md`, `cli/hooks/hooks.json`, `cli/scripts/*.sh`, `cli/bin/wt`).
 - `.claude-plugin/marketplace.json` — marketplace pointing at `./cli`.
 - `cli/src/core/planner.ts` — the heart: step builders + `planNew/planPromote/planPoolClaim/planDestroy`.
 - `cli/src/core/engine.ts` — runs steps, rolls back on failure (`Step.optional` = warn and continue).
@@ -16,7 +17,8 @@ Start with `PLAN.md` (what to do next) and `ARCHITECTURE.md` (why). `BRAINSTORM.
 ```bash
 cd cli && npm install && npm run typecheck && npm test && npm run build
 ```
-Smoke test without Docker: see PLAN.md §1 (shim `ddev`). Real DDEV test: PLAN.md §2.
+`npm run test:smoke` drives the whole lifecycle against a fake `ddev` on `PATH` — no Docker needed;
+`npm run test:all` runs both. `KEEP=1 npm run test:smoke` keeps the scratch repo for inspection.
 
 ## Hard rules
 - Never prompt interactively; every error has an exit code + `hint`; `--json` output is an API for agents — don't change shapes silently.

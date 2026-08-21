@@ -1,7 +1,10 @@
 {
   "name": "wt",
   "version": "0.2.0",
-  "description": "Per-worktree DDEV environments for AI agents (WordPress, Laravel, React): isolated URL, DB, media per branch, with DB change tracking.",
-  "author": { "name": "Jhay" },
-  "keywords": ["ddev", "worktree", "wordpress", "laravel", "react"]
+  "description": "Per-worktree DDEV environments for AI agents: every branch gets its own URL, database and media, sized to the task, with database change tracking.",
+  "author": { "name": "Jhay", "url": "https://github.com/jhayunu" },
+  "homepage": "https://github.com/jhayunu/wt#readme",
+  "repository": "https://github.com/jhayunu/wt",
+  "license": "MIT",
+  "keywords": ["ddev", "worktree", "wordpress", "drupal", "laravel", "react", "isolation", "parallel-agents"]
 }

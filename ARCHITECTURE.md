@@ -2,7 +2,8 @@
 
 Architecture for a CLI that gives every git worktree its own runnable environment (DDEV-based) for WordPress, Laravel and React projects, sized to the complexity of the task an AI agent is working on.
 
-Status: draft v0.1 · 2026-08-21 · owner: Jhay
+Status: v0.2 · see the maturity note in [`README.md`](README.md#maturity) for what is verified
+against real DDEV and what is still only exercised against a test shim.
 
 ---
 
@@ -42,7 +43,7 @@ These are verified against current DDEV docs and are the reason DDEV is a good f
 1. **Per-worktree project name.** `wt` writes `name: <worktree>` into the worktree's `.ddev/config.wt.local.yaml`; DDEV merges `config.*.yaml` over `config.yaml`, so that wins even when the repo pins its own `name:` (verified on DDEV v1.25.1 with `ddev utility configyaml`). A worktree at `…/.wt/worktrees/feat-checkout/` becomes project `feat-checkout` → `https://feat-checkout.ddev.site`, with its own `db` container. (Omitting `name:` altogether also works — DDEV then derives it from the directory, the pattern it documents for worktrees — but requiring that of every repo was a needless barrier: it renames the main project and moves its URL.)
 2. **Override files.** DDEV merges `.ddev/config.*.yaml` in lexicographic order; `config.local.yaml` and `config.*.local.yaml` are gitignored by default. `wt` writes all per-worktree settings to `.ddev/config.wt.local.yaml` and never touches the committed config.
 3. **One router, many projects.** All running projects share the DDEV router on 80/443 and get unique `*.ddev.site` hostnames. No port juggling.
-4. **Database tooling.** `ddev snapshot` / `snapshot restore`, `ddev export-db` / `import-db`, and `ddev wp` / `ddev artisan` / `ddev exec` cover cloning and URL rewriting without custom SQL.
+4. **Database tooling.** `ddev snapshot` / `snapshot restore`, `ddev export-db` / `import-db`, and `ddev wp` / `ddev artisan` / `ddev exec` cover cloning and URL rewriting without custom SQL. Snapshots are gzipped files under a project's `.ddev/db_snapshots`, and may be moved between projects as long as the `-<dbtype>_<version>.gz` suffix is unchanged — which is what `stepDbClone` relies on, copying the file verbatim between two projects that share one `.ddev/config.yaml`. Note that `ddev snapshot` accepts `-y` but `ddev snapshot restore` does not (checked on v1.25.1).
 5. **Hooks.** `hooks.post-start` in the override file lets `wt` run `wp search-replace` or `artisan migrate` automatically on every `ddev start`.
 6. **Upload dirs.** `upload_dirs:` tells DDEV where media lives (exposed as `DDEV_FILES_DIRS`), which `wt` uses to decide what to symlink.
 

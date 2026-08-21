@@ -1,6 +1,6 @@
 ---
-name: wt-worktree-env
-description: Use `wt` to get an isolated, runnable environment (own URL, DB, media) for every branch you work on in WordPress, Laravel or React repos that use DDEV. Decide while planning: any plan that edits files, runs migrations or runs a test suite starts with `wt new`. Also use before running the app or tests, and clean up at the end.
+name: wt
+description: Use `wt` to get an isolated, runnable environment (own URL, DB, media) for every branch you work on in WordPress, Drupal, Laravel or React repos that use DDEV. Decide while planning: any plan that edits files, runs migrations or runs a test suite starts with `wt new`. Also use before running the app or tests, and clean up at the end.
 ---
 
 # Working in an isolated worktree with `wt`
