@@ -21,6 +21,7 @@ export interface RepoConfig {
     changes_dir: string;
     track_tables: string[];
     deny_tables: string[];
+    deny_rows: Record<string, string[]>;
   };
   laravel: { auto_migrate: boolean; queue: "per-project" | "shared-prefixed" | "none" };
   wordpress: { search_replace_extra: string[]; exclude_tables: string[] };

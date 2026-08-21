@@ -1,8 +1,9 @@
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import type { DbChangeProvider } from "../core/types.js";
+import type { DbChangeProvider, RepoConfig } from "../core/types.js";
 import { ddev } from "../core/ddev.js";
+import { isDenied } from "./deny.js";
 
 /**
  * WordPress content changeset via WP-CLI:
@@ -11,7 +12,10 @@ import { ddev } from "../core/ddev.js";
  *  - acf/         : ACF local JSON is already file-based; nothing to do
  * Replay: `wp option update` per key, `wp import posts.wxr --authors=skip`.
  */
+// URL/session churn that is never a real content change. Secrets and other churn come
+// from `db.deny_rows` instead, so one config governs both providers (see providers/deny.ts).
 const DENY_OPTS = /^(_transient_|_site_transient_|cron$|siteurl$|home$|recently_activated$|auth_key|secure_auth|logged_in|nonce)/;
+const keep = (ctx: { cfg: RepoConfig }, name: string) => !DENY_OPTS.test(name) && !isDenied(ctx.cfg, "wp_options", name);
 
 export const wpChangeset: DbChangeProvider = {
   id: "wp-changeset",
@@ -36,7 +40,7 @@ export const wpChangeset: DbChangeProvider = {
     const before = JSON.parse(await readFile(path.join(dir, "options.json"), "utf8")) as { option_name: string; option_value: unknown }[];
     const now = JSON.parse((await ddev.exec(ctx.run, ctx.rec.path, ["wp", "option", "list", "--format=json", "--unserialize"])).stdout) as typeof before;
     const bmap = new Map(before.map((o) => [o.option_name, JSON.stringify(o.option_value)]));
-    const changed = now.filter((o) => !DENY_OPTS.test(o.option_name) && bmap.get(o.option_name) !== JSON.stringify(o.option_value));
+    const changed = now.filter((o) => keep(ctx, o.option_name) && bmap.get(o.option_name) !== JSON.stringify(o.option_value));
     const n = Number(posts.stdout.trim()) || 0;
     const data: Record<string, number> = {};
     if (changed.length) data.wp_options = changed.length;
@@ -52,7 +56,7 @@ export const wpChangeset: DbChangeProvider = {
       const now = JSON.parse((await ddev.exec(ctx.run, ctx.rec.path, ["wp", "option", "list", "--format=json", "--unserialize"])).stdout) as { option_name: string; option_value: unknown }[];
       const before = JSON.parse(await readFile(path.join(ctx.repoRoot, ".wt", "baseline", ctx.rec.name, "options.json"), "utf8")) as typeof now;
       const bmap = new Map(before.map((o) => [o.option_name, JSON.stringify(o.option_value)]));
-      const changed = now.filter((o) => !DENY_OPTS.test(o.option_name) && bmap.get(o.option_name) !== JSON.stringify(o.option_value))
+      const changed = now.filter((o) => keep(ctx, o.option_name) && bmap.get(o.option_name) !== JSON.stringify(o.option_value))
         .sort((a, b) => a.option_name.localeCompare(b.option_name));
       const json = JSON.stringify(changed, null, 2).split(ctx.rec.url).join("{{WT_URL}}");
       const p = path.join(dir, "options.json"); await writeFile(p, json + "\n"); written.push(p);

@@ -29,6 +29,13 @@ export const RepoConfigSchema = z.object({
     changes_dir: z.string().default("db/changes"),
     track_tables: z.array(z.string()).default([]),
     deny_tables: z.array(z.string()).default(["wp_users", "wp_usermeta", "sessions", "personal_access_tokens"]),
+    // Row-level deny for key/value tables — see providers/deny.ts. The defaults cover
+    // the two things that make a wp_options export unusable: credentials that must not
+    // reach git (mailserver_pass, recovery_keys) and rows WordPress rewrites on its own
+    // (cron, transients), which would otherwise dirty every single changeset.
+    deny_rows: z.record(z.array(z.string())).default({
+      "wp_options.option_name": ["cron", "recovery_keys", "mailserver_pass", "_transient_%", "_site_transient_%"],
+    }),
   }).default({}),
   laravel: z.object({
     auto_migrate: z.boolean().default(true),

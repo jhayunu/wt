@@ -229,7 +229,7 @@ Providers shipped or planned:
 
 | Provider | Tracks | Output format | Notes |
 |---|---|---|---|
-| `snapshot-diff` (default, agnostic) | schema + rows of whitelisted tables | `schema.sql` (DDL diff) + `data/<table>.sql` (INSERT … ON DUPLICATE KEY UPDATE) | Uses `mysqldump --no-data` / `--skip-triggers` on baseline and current, diffs with an embedded SQL-aware differ. Works for any DDEV DB. Row diffs only for tables listed in `.wt.yml: db.track_tables`. |
+| `snapshot-diff` (default, agnostic) | schema + rows of whitelisted tables | `schema.sql` (DDL diff) + `data/<table>.sql` (`REPLACE INTO`, **only the rows that differ**) | Uses `mysqldump --no-data` / `--skip-triggers` on baseline and current, diffs with an embedded SQL-aware differ. Works for any DDEV DB. Row diffs only for tables listed in `.wt.yml: db.track_tables`, minus anything matched by `db.deny_rows`. Deletions are reported in the file header but not exported — expressing them needs the primary key, which this provider does not introspect. |
 | `laravel-migrations` | schema (+ seeders) | nothing new — migrations are the changeset | `diff` = `artisan migrate:status` against baseline; `export` = no-op, but warns if schema drifted without a migration (agent edited the DB by hand). |
 | `wp-changeset` | WordPress content | `options.json` (selected `wp_options`), `posts.wxr` (WXR export of posts/pages/CPTs changed since baseline, by `post_modified_gmt`), `acf.json` (ACF local JSON if present), `menus.json` | Built on WP-CLI. Replay uses `wp option update`, `wp import`, ACF sync. Hostname-agnostic because export rewrites URLs to a placeholder token and `apply` substitutes the target's URL. |
 | `liquibase` | schema (+ data via `diff-changelog --diff-types=data`) | Liquibase changelog (XML/YAML/SQL) | Runs in a `liquibase/liquibase` container on the DDEV network against `db`. Good fit for teams that already use it; supports `rollback`. |
@@ -287,6 +287,8 @@ db:
   changes_dir: db/changes
   track_tables: [wp_options, wp_posts, wp_postmeta, wp_terms, wp_term_taxonomy, wp_term_relationships]
   deny_tables: [wp_users, wp_usermeta, sessions, personal_access_tokens]
+  deny_rows:                   # per-row deny for key/value tables: <table>.<column>
+    wp_options.option_name: [cron, recovery_keys, mailserver_pass, "_transient_%", "_site_transient_%"]
 hints:
   "migration|schema|seeder": 2
   "import|media|thumbnail|upload|resize": 3

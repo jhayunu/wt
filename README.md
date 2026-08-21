@@ -149,7 +149,9 @@ router: no filesystem coupling, writes stay local) · `none`.
 `diff / export / apply / status` through a pluggable `DbChangeProvider`:
 
 - `snapshot-diff` — framework-agnostic: real `ALTER/CREATE/DROP` statements from a CREATE TABLE
-  differ, plus row upserts for tables you list in `track_tables`
+  differ, plus row upserts for tables you list in `track_tables` — only the rows that actually
+  differ, with `db.deny_rows` keeping credentials and self-churning rows (`cron`, transients)
+  out of the changeset entirely
 - `laravel-migrations` — the migrations *are* the changeset; warns when the schema drifted outside them
 - `wp-changeset` — changed `wp_options` as JSON and a WXR export of modified posts, with URLs
   tokenised as `{{WT_URL}}`
