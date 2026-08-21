@@ -17,7 +17,7 @@ import { cmdClone } from "./commands/clone.js";
 const program = new Command()
   .name("wt")
   .description("Per-worktree DDEV environments for AI agents (WordPress · Laravel · React)")
-  .version("0.2.0")
+  .version("0.2.1")
   .option("--json", "machine-readable output")
   .option("--dry-run", "print the plan and commands without executing")
   .option("-q, --quiet", "suppress progress on stderr");
