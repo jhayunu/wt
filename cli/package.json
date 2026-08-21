@@ -4,7 +4,7 @@
   "description": "Per-worktree DDEV environments for AI agents (WordPress, Laravel, React)",
   "type": "module",
   "bin": {
-    "wt": "./dist/cli.js"
+    "wt": "dist/cli.js"
   },
   "files": [
     "dist",
