@@ -1,4 +1,6 @@
 import path from "node:path";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { ddevList, ddev, ddevStatus } from "../core/ddev.js";
 import { applySteps } from "../core/engine.js";
 import { planDestroy } from "../core/planner.js";
@@ -98,6 +100,40 @@ export async function cmdDoctor(env: Env, name?: string) {
                    : `.ddev/config.yaml says "${ddevCfg.name}", .wt.yml says "${env.cfg.main}" — set main: ${ddevCfg.name}` });
   const gi = await env.run("git", ["check-ignore", "-q", ".wt/manifest.json"], { cwd: env.repoRoot, allowFail: true });
   checks.push({ check: ".wt/ is gitignored", ok: gi.exitCode === 0, detail: gi.exitCode === 0 ? "ok" : "add `.wt/` to .gitignore" });
+
+  // A pool entry whose DDEV project has vanished will be handed to the next `wt new --pool`
+  // and fail there instead of here, where it can actually be explained.
+  const liveNames = new Set((await ddevList(env.run)).map((p) => p.name));
+  const phantoms = Object.values(env.manifest.worktrees).filter((r) => r.pool && !liveNames.has(r.name));
+  if (Object.values(env.manifest.worktrees).some((r) => r.pool)) {
+    checks.push({ check: "warm pool entries have live environments", ok: phantoms.length === 0,
+      detail: phantoms.length === 0 ? "ok" : `${phantoms.map((p) => p.name).join(", ")} — no such DDEV project; run: wt pool drain` });
+  }
+
+  // `git worktree add` only materialises *tracked* files, so a gitignored config file means
+  // every worktree boots without it — and the resulting failure says nothing about why.
+  for (const a of env.adapters) {
+    for (const f of a.sharedFiles?.() ?? []) {
+      if (!existsSync(path.join(env.repoRoot, f))) continue;
+      // `git check-ignore` deliberately says nothing about tracked files, so it answers the
+      // wrong question. What matters is only whether the file is in the index: that, and
+      // nothing else, decides whether `git worktree add` materialises it.
+      const tracked = await env.run("git", ["ls-files", "--error-unmatch", f], { cwd: env.repoRoot, allowFail: true });
+      checks.push({ check: `${f} reaches new worktrees`, ok: tracked.exitCode === 0,
+        detail: tracked.exitCode === 0 ? "ok (tracked)" : `${f} exists but is untracked — git worktrees only carry tracked files, so the site will not boot there` });
+    }
+    // A media path ignored only as `dir/` does not match the symlink wt puts there from
+    // level 2 up: the worktree is born dirty and `git add -A` can commit the symlink.
+    for (const m of a.mediaPaths()) {
+      const bare = m.replace(/\/$/, "");
+      const lines = (existsSync(path.join(env.repoRoot, ".gitignore"))
+        ? await readFile(path.join(env.repoRoot, ".gitignore"), "utf8") : "").split("\n").map((l) => l.trim());
+      if (!lines.includes(`${bare}/`)) continue;           // no dir-only rule, nothing to warn about
+      const ok = lines.includes(bare);
+      checks.push({ check: `${bare} is ignored as a symlink too`, ok,
+        detail: ok ? "ok" : `.gitignore has "${bare}/" but not "${bare}" — wt symlinks it, and "dir/" never matches a symlink` });
+    }
+  }
   if (name) {
     const r = getRecord(env, name);
     const { detectAdapters } = await import("../adapters/index.js");

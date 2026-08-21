@@ -70,10 +70,17 @@ export async function cmdNew(env: Env, branch: string, o: NewOpts) {
     env.log(`level ${level} (${LEVEL_NAMES[level]}): ${reasons.join("; ")}`);
     env.log(`plan:\n  ${describePlan(steps).join("\n  ")}`);
 
+    if (poolEntry && !env.opts.dryRun) {
+      // The first claim step deletes the pool project, which cannot be undone — the entry
+      // is spent the moment we begin. Record that now: if a later step fails, the manifest
+      // must not go on advertising an environment that no longer exists.
+      delete env.manifest.worktrees[poolEntry.name];
+      await saveManifest(env.repoRoot, env.manifest);
+    }
+
     await applySteps(ctx, steps);
 
     if (!env.opts.dryRun) {
-      if (poolEntry) delete env.manifest.worktrees[poolEntry.name];
       env.manifest.worktrees[name] = rec;
       await saveManifest(env.repoRoot, env.manifest);
     }

@@ -377,7 +377,17 @@ export function planPoolClaim(ctx: Ctx, adapters: Adapter[], providers: DbChange
         // The renamed project must not reuse router/cert config generated for the old name (learned from workspace-manager).
         if (!c.dryRun) await rm(path.join(rec.path, ".ddev", "traefik"), { recursive: true, force: true });
       },
-      async down(c) { await c.run("git", ["worktree", "move", rec.path, poolRec.path], { cwd: repoRoot, allowFail: true }); },
+      async down(c) {
+        // Moving back is pointless: `up` deleted the pool project irreversibly and the
+        // entry has already been struck from the manifest, so there is no pool entry to
+        // restore. Clear the debris instead of leaving a half-renamed worktree that makes
+        // the next claim fail with "path exists".
+        for (const p of [rec.path, poolRec.path]) {
+          await c.run("git", ["worktree", "remove", "--force", p], { cwd: repoRoot, allowFail: true });
+          if (!c.dryRun) await rm(p, { recursive: true, force: true });
+        }
+        await c.run("git", ["worktree", "prune"], { cwd: repoRoot, allowFail: true });
+      },
     },
     stepWriteConfig(ctx, adapters),
     {

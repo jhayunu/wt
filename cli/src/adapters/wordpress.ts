@@ -10,6 +10,8 @@ export const wordpress: Adapter = {
     return ["wp-config.php", "wp-content", "web/wp-config.php", "public/wp-config.php"].some((p) => existsSync(path.join(root, p)));
   },
   mediaPaths: () => ["wp-content/uploads"],
+  // Commonly gitignored in real repos; a worktree without it cannot boot at all.
+  sharedFiles: () => ["wp-config.php"],
   treeMarker: () => "wp-config.php",
   defaultChangeProviders: () => ["wp-changeset", "snapshot-diff"],
 
