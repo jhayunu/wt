@@ -1,8 +1,35 @@
 #!/usr/bin/env sh
-# Runs wt from this plugin checkout. Uses a global `wt` if present, else builds once and runs dist.
-if command -v wt >/dev/null 2>&1 && [ -z "$WT_FORCE_LOCAL" ]; then exec wt "$@"; fi
+# Runs wt from this plugin checkout. Uses a global `wt` when present, else builds once and runs dist.
+# Plugin installs arrive without dist/ or node_modules/ (both gitignored), so the first local run
+# has to build. That takes minutes, so it is announced, serialised, and skippable via WT_NO_BUILD.
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-if [ ! -f "$ROOT/dist/cli.js" ]; then
-  (cd "$ROOT" && npm install --silent --no-audit --no-fund && npm run -s build) >&2 || { echo "wt: build failed in $ROOT" >&2; exit 6; }
+
+# A global `wt` that resolves back to this script would exec itself forever — ignore it.
+if [ -z "$WT_FORCE_LOCAL" ] && G="$(command -v wt 2>/dev/null)" && [ -n "$G" ]; then
+  case "$(cd "$(dirname "$G")" 2>/dev/null && pwd)/$(basename "$G")" in
+    "$ROOT/bin/wt") ;;
+    *) exec "$G" "$@" ;;
+  esac
 fi
+
+if [ ! -f "$ROOT/dist/cli.js" ]; then
+  [ -n "$WT_NO_BUILD" ] && exit 7
+  LOCK="$ROOT/.wt-build.lock"
+  if mkdir "$LOCK" 2>/dev/null; then
+    trap 'rmdir "$LOCK" 2>/dev/null' EXIT INT TERM
+    echo "wt: first run — building the CLI in $ROOT (a few minutes, one time only)…" >&2
+    [ -d "$ROOT/node_modules" ] || { echo "wt: installing dependencies…" >&2; (cd "$ROOT" && npm install --no-audit --no-fund) >&2 || { echo "wt: npm install failed in $ROOT" >&2; exit 6; }; }
+    echo "wt: compiling…" >&2
+    (cd "$ROOT" && npm run -s build) >&2 || { echo "wt: build failed in $ROOT" >&2; exit 6; }
+    echo "wt: ready." >&2
+    rmdir "$LOCK" 2>/dev/null; trap - EXIT INT TERM   # exec below replaces this shell, so the EXIT trap would never fire
+  else
+    # Another process is building (three hooks can fire at once). Wait, don't build twice.
+    echo "wt: waiting for an in-progress build…" >&2
+    i=0
+    while [ -d "$LOCK" ] && [ ! -f "$ROOT/dist/cli.js" ] && [ "$i" -lt 600 ]; do sleep 1; i=$((i+1)); done
+    [ -f "$ROOT/dist/cli.js" ] || { echo "wt: build did not complete; run '$ROOT/bin/wt --version' manually" >&2; exit 6; }
+  fi
+fi
+
 exec node "$ROOT/dist/cli.js" "$@"

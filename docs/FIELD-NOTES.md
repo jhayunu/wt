@@ -104,6 +104,41 @@ not serve. `core/ddevconfig.ts urlFor()` now swaps the first hostname label of m
 **F10 — generated `config.wt.local.yaml` carried a `"#"` YAML key** as a pseudo-comment.
 Now a real comment line above the document.
 
+**F11 — every hook died with "Permission denied" (fatal to the plugin).** `cli/bin/wt`
+and all three `cli/scripts/*.sh` were tracked as `100644`. A plugin install is a git
+checkout, so nothing restores the exec bit: SessionStart, UserPromptSubmit and Stop all
+failed on a fresh install, and the plugin was inert.
+- Fix: `git update-index --chmod=+x` on `bin/wt`, `scripts/*.sh`, `install.sh`;
+  `hooks/hooks.json` now invokes each script as `sh "<path>"` so a lost mode cannot
+  break the hooks again.
+- Regression: `cli/test/smoke.sh` — asserts the index mode of each of those files is
+  `100755`.
+
+**F12 — the launcher looked like it hung on first use.** `dist/` and `node_modules/` are
+gitignored, so a plugin install has neither and `bin/wt` builds on first call. It did
+that silently: ~2.5 minutes of no output, which reads as a hang and gets killed. Worse,
+three hooks can fire at once and each would have run `npm install` in the same directory.
+- Fix: `cli/bin/wt` announces each stage on stderr, serialises the build behind a
+  `.wt-build.lock` directory (losers wait for `dist/cli.js`, up to 10 min), skips
+  `npm install` when `node_modules` already exists, and releases the lock *before*
+  `exec` — an `EXIT` trap never fires across `exec`. `WT_NO_BUILD=1` exits 7 instead of
+  building; all three hook scripts set it, so a hook can never block a session. When
+  unbuilt, SessionStart prints the single command to run.
+- Also: a global `wt` that resolves back to this same script is now ignored, so
+  `exec wt "$@"` cannot loop forever.
+- Regression: `smoke.sh` — asserts each hook script carries `WT_NO_BUILD` and that an
+  unbuilt launcher exits 7.
+
+**F13 — version drift across the three manifests.** `package.json` said 0.2.0 while
+`cli/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` both said 0.1.0,
+so `/plugin install` advertised the wrong version.
+- Fix: all three at 0.2.0.
+- Regression: `smoke.sh` — asserts the three agree.
+
+Verified during this pass: a fresh `git checkout-index` of the repo — what a plugin
+install gets — builds via `bin/wt` and answers `--version` in ~3 s, with four concurrent
+first-run callers producing exactly one build and no leftover lock.
+
 Still unverified after this audit (needs Run 1): that a snapshot file copied between
 projects actually restores; `ddev exec --dir` paths under Mutagen; media `proxy` through
 the router; pool claim renaming.

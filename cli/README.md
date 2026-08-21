@@ -11,7 +11,7 @@ One command gives a git worktree its own running environment (hostname, containe
 /plugin install wt@gitworktrees
 ```
 
-The plugin ships the `wt-worktree-env` skill, a `/wt <branch> "<task>"` command, a SessionStart hook that reports environment health, and a Stop hook that reminds about live worktrees. It runs the CLI from `${CLAUDE_PLUGIN_ROOT}/bin/wt` (builds itself on first use) or uses a global `wt` when present.
+The plugin ships the `wt-worktree-env` skill, a `/wt <branch> "<task>"` command, a SessionStart hook that reports environment health, and a Stop hook that reminds about live worktrees. It runs the CLI from `${CLAUDE_PLUGIN_ROOT}/bin/wt` or a global `wt` when present. A plugin install arrives without `dist/` (it is gitignored), so the launcher builds itself on first use — announced on stderr and serialised with a lock, since several hooks can fire at once. Hooks themselves never build (`WT_NO_BUILD=1`): until the first build they stay silent, and SessionStart prints the one command to run.
 
 On a new machine, follow the install with:
 
@@ -143,7 +143,7 @@ src/providers/ddl-diff.ts, ledger.ts
 skills/wt/SKILL.md       Claude Code skill telling agents how to use wt
 commands/wt.md           /wt slash command
 hooks/hooks.json, scripts/   SessionStart / Stop hooks
-bin/wt                   wrapper used by the plugin (global wt → else local build)
+bin/wt                   wrapper used by the plugin (global wt → else build once → dist)
 .claude-plugin/plugin.json   plugin manifest (marketplace.json lives at repo root)
 ```
 

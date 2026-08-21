@@ -33,6 +33,40 @@ assert_missing()  { case "$1" in *"$2"*) fail "$3: did not expect '$2' in: $1" ;
 # jget <json> <dotted.path> — read one field out of a --json response (no jq dependency)
 jget() { node -e 'const o=JSON.parse(process.argv[1]);process.stdout.write(String(process.argv[2].split(".").reduce((a,k)=>a?.[k],o)))' "$1" "$2"; }
 
+# ------------------------------------------------------------- packaging ----
+# A plugin install is a git checkout, so the exec bit has to be in the index:
+# without it every hook dies with "Permission denied" (Run 0, F11).
+step "packaging: launcher + hooks are executable in git"
+for f in bin/wt scripts/session-start.sh scripts/stop.sh scripts/prompt-context.sh install.sh test/smoke.sh; do
+  mode="$(cd "$CLI_DIR" && git ls-files -s "$f" | awk '{print $1}')"
+  [ -z "$mode" ] && fail "packaging: $f is not tracked by git"
+  [ "$mode" = "100755" ] || fail "packaging: $f is mode $mode in the index, expected 100755"
+done
+ok "bin/wt, hook scripts and install.sh are 100755 in the index"
+
+# Hooks must never trigger the first-run build: it blocks the session for minutes
+# and three hooks can fire at once (Run 0, F12).
+for f in scripts/session-start.sh scripts/stop.sh scripts/prompt-context.sh; do
+  grep -q 'WT_NO_BUILD' "$CLI_DIR/$f" || fail "packaging: $f can trigger a build (no WT_NO_BUILD guard)"
+done
+ok "all three hook scripts run the launcher with WT_NO_BUILD"
+
+step "packaging: WT_NO_BUILD short-circuits when dist is missing"
+NB="$(mktemp -d "${TMPDIR:-/tmp}/wt-nobuild.XXXXXX")"
+mkdir -p "$NB/bin" && cp "$CLI_DIR/bin/wt" "$NB/bin/wt"
+set +e; WT_NO_BUILD=1 WT_FORCE_LOCAL=1 sh "$NB/bin/wt" --version >/dev/null 2>&1; nb_rc=$?; set -e
+rm -rf "$NB"
+[ "$nb_rc" -eq 7 ] || fail "packaging: expected exit 7 from an unbuilt launcher, got $nb_rc"
+ok "unbuilt launcher exits 7 instead of building"
+
+step "packaging: plugin and marketplace versions match package.json"
+PKG_V="$(node -p 'require("'"$CLI_DIR"'/package.json").version')"
+PLG_V="$(node -p 'require("'"$CLI_DIR"'/.claude-plugin/plugin.json").version')"
+MKT_V="$(node -p 'require("'"$CLI_DIR"'/../.claude-plugin/marketplace.json").plugins.find(p=>p.name==="wt").version')"
+[ "$PKG_V" = "$PLG_V" ] || fail "packaging: plugin.json $PLG_V != package.json $PKG_V"
+[ "$PKG_V" = "$MKT_V" ] || fail "packaging: marketplace.json $MKT_V != package.json $PKG_V"
+ok "package.json, plugin.json and marketplace.json all say $PKG_V"
+
 # ---------------------------------------------------------------- fake ddev --
 mkdir -p "$SHIM"
 cat > "$SHIM/ddev" <<'EOF'

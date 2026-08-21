@@ -1,6 +1,6 @@
 {
   "name": "wt",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Per-worktree DDEV environments for AI agents (WordPress, Laravel, React): isolated URL, DB, media per branch, with DB change tracking.",
   "author": { "name": "Jhay" },
   "keywords": ["ddev", "worktree", "wordpress", "laravel", "react"]
