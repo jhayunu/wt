@@ -189,6 +189,19 @@ assert_missing "$REC" 'pool-' "no pool- name leaks into the claimed worktree rec
 ok "worktree renamed to feat-pooled"
 assert_contains "$OUT" 'URL fixup from https://pool-' "start rewrites the pool URL to the new hostname"
 assert_contains "$($WT --json pool ls)" '"pool":[]'    "pool entry consumed"
+
+# `ddev delete` drops the project's database volume along with the project, so a claim
+# that renames without preserving the DB hands over an empty database — the one thing a
+# warm pool exists to avoid. The shim has no volume to lose, so assert on the ordering of
+# the calls instead: snapshot BEFORE the delete, restore AFTER the start.
+step "pool claim must carry the pooled database across the rename"
+grep -n . "$WT_SHIM_LOG" | awk -F: '
+  /snapshot --name wt-claim-feat-pooled/ { snap = $1 }
+  /^[0-9]+:delete -Oy pool-/            { if (!snap || $1 < snap) bad = 1; else deleted = $1 }
+  /snapshot restore wt-claim-feat-pooled/ { if (deleted && $1 > deleted) restored = 1 }
+  END { exit !(snap && deleted && restored && !bad) }' \
+  || fail "claim did not snapshot the pool DB before delete and restore it after start"
+ok "pooled database is snapshotted before delete and restored after start"
 $WT --json destroy feat-pooled >/dev/null || fail "destroy feat-pooled failed"
 ok "claimed worktree destroyed"
 

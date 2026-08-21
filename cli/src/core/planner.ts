@@ -354,12 +354,19 @@ export function planPromote(ctx: Ctx, adapters: Adapter[], providers: DbChangePr
 /** Claim a warm-pool entry: rename dir/project, switch branch, rewrite URLs. Much faster than a fresh clone. */
 export function planPoolClaim(ctx: Ctx, adapters: Adapter[], providers: DbChangeProvider[], poolRec: { name: string; path: string; url: string; snapshots: string[] }, from: string): Step[] {
   const { rec, repoRoot } = ctx;
+  // DDEV names the database volume after the project, so `ddev delete` below takes the
+  // pooled database with it — the very thing the pool exists to have ready. Snapshot it
+  // first: the file lands in <path>/.ddev/db_snapshots, travels with `git worktree move`,
+  // and is restored into the renamed project after it starts. Same mechanism as
+  // stepDbClone, which is verified against real DDEV.
+  const claimSnap = `wt-claim-${rec.name}`;
   return [
     {
       title: `claim pool entry ${poolRec.name} → ${rec.name}`,
       async up(c) {
+        await ddev.snapshot(c.run, poolRec.path, claimSnap);
         await ddev.stop(c.run, poolRec.name);
-        await ddev.delete(c.run, poolRec.name); // drops the registry entry (and its snapshots) for the old name; containers are recreated under the new name
+        await ddev.delete(c.run, poolRec.name); // drops the registry entry for the old name; containers and the db volume are recreated under the new one
         await c.run("git", ["worktree", "move", poolRec.path, rec.path], { cwd: repoRoot });
         const exists = await branchExists(c.run, repoRoot, rec.branch);
         const poolBranch = (await c.run("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: rec.path, allowFail: true })).stdout.trim();
@@ -376,6 +383,11 @@ export function planPoolClaim(ctx: Ctx, adapters: Adapter[], providers: DbChange
     {
       title: `ddev start → ${rec.url} (URL fixup from ${poolRec.url})`,
       async up(c) {
+        await ddev.start(c.run, rec.path);
+        await ddev.snapshotRestore(c.run, rec.path, claimSnap);
+        // post-start hooks ran against the empty database the new volume started with,
+        // so run them again now the pooled data is back — this is what rewrites
+        // poolRec.url to rec.url
         await ddev.start(c.run, rec.path);
         for (const a of adapters) await a.postStart(c);
         await ddev.snapshot(c.run, rec.path, `wt-${rec.name}`); rec.snapshots.push(`wt-${rec.name}`);
