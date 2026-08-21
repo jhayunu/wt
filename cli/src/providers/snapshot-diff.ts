@@ -133,13 +133,13 @@ export const snapshotDiff: DbChangeProvider = {
     const schema = path.join(dir, "schema.sql");
     if (existsSync(schema)) {
       const sql = (await readFile(schema, "utf8")).split("\n").filter((l) => !l.startsWith("--")).join("\n");
-      if (sql.trim()) await ddev.exec(ctx.run, ctx.rec.path, ["mysql", "db", "-e", sql]);
+      if (sql.trim()) await ddev.mysqlIn(ctx.run, ctx.rec.path, sql);
     }
     const dataDir = path.join(dir, "data");
     if (existsSync(dataDir)) {
       for (const f of (await readdir(dataDir)).sort()) {
         const sql = detokenise(ctx, await readFile(path.join(dataDir, f), "utf8"));
-        await ddev.exec(ctx.run, ctx.rec.path, ["mysql", "db", "-e", sql]);
+        if (sql.trim()) await ddev.mysqlIn(ctx.run, ctx.rec.path, sql);
       }
     }
   },

@@ -30,4 +30,13 @@ export const ddev = {
   snapshotRestore: (run: Runner, cwd: string, name: string) => run("ddev", ["snapshot", "restore", name], { cwd }),
   exportDb: (run: Runner, cwd: string, file: string) => run("ddev", ["export-db", "--file", file, "--gzip=false"], { cwd }),
   importDb: (run: Runner, cwd: string, file: string) => run("ddev", ["import-db", "--file", file], { cwd }),
+  /**
+   * Run SQL against the project database via stdin.
+   *
+   * Deliberately not `ddev exec mysql db -e "<sql>"`: `ddev exec` runs its argument
+   * through bash, and mysqldump always backtick-quotes identifiers, so bash turns
+   * `\`wp_options\`` into command substitution before MySQL sees it. stdin has no
+   * such layer. `ddev mysql` already targets the project database.
+   */
+  mysqlIn: (run: Runner, cwd: string, sql: string) => run("ddev", ["mysql"], { cwd, input: sql }),
 };

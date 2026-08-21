@@ -74,7 +74,11 @@ export const wpChangeset: DbChangeProvider = {
     if (existsSync(opts)) {
       const list = JSON.parse((await readFile(opts, "utf8")).split("{{WT_URL}}").join(ctx.rec.url)) as { option_name: string; option_value: unknown }[];
       for (const o of list) {
-        await ddev.exec(ctx.run, ctx.rec.path, ["wp", "option", "update", o.option_name, "--format=json", "--", JSON.stringify(o.option_value)]);
+        // The value goes in on stdin: passing it as an argument means it crosses bash
+        // (ddev exec) and then WP-CLI's own parser, which double-quotes it into a second
+        // positional argument — "Error: Too many positional arguments".
+        await ctx.run("ddev", ["wp", "option", "update", o.option_name, "--format=json"],
+          { cwd: ctx.rec.path, input: JSON.stringify(o.option_value) });
       }
     }
     const wxr = path.join(dir, "posts.wxr");
