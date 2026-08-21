@@ -58,7 +58,17 @@ Known risk points and where to fix them:
 | proxy media 502 | router hostname/TLS | `mediaProxyConf` in `core/planner.ts` — test `curl -k --resolve` from inside web container to `ddev-router` |
 | `wp search-replace` breaks serialized data | missing `--precise`/`--recurse-objects` already set; check `--skip-columns=guid` appropriateness | `adapters/wordpress.ts ddevOverrides` |
 
-Record findings as GitHub issues or in `docs/FIELD-NOTES.md` (create it). Every fix gets a shim-level regression where possible.
+Record findings in `docs/FIELD-NOTES.md` — the template is now there, with a step-by-step
+table matching §2.1–8, a findings format and a secrets/leak checklist for step 5. Every fix
+gets a shim-level regression in `cli/test/smoke.sh` where possible.
+
+Already de-risked (2026-08-21, verified against Context7 `/ddev/ddev`; this machine has DDEV
+v1.25.1 + Docker 29.3.1): snapshots live in `.ddev/db_snapshots` as gzipped files and may be
+moved between projects **provided the `-<dbtype>_<version>.gz` suffix is unchanged** — which
+`stepDbClone` satisfies, since it copies the file verbatim and both projects read the same
+`.ddev/config.yaml`. So risk-table row 1 is narrower than feared: what still needs empirical
+proof is only that `ddev snapshot restore <name>` picks up a file dropped into a *different*
+project's snapshot dir.
 
 ## 3. Task B — repo hygiene (can run in parallel with A)
 
