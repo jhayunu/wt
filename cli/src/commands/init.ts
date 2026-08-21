@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { appendFile, readFile, writeFile } from "node:fs/promises";
+import { appendFile, readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { CONFIG_FILE } from "../core/config.js";
 import { detectAdapters, frameworkOf } from "../adapters/index.js";
@@ -83,8 +83,21 @@ export async function cmdInit(env: Env) {
 
   const gi = path.join(env.repoRoot, ".gitignore");
   const cur = existsSync(gi) ? await readFile(gi, "utf8") : "";
-  const missing = IGNORES.filter((l) => !cur.split("\n").includes(l));
+  // Media dirs need the slash-less form too: from level 2 up wt replaces them with a
+  // symlink, and a `dir/` pattern only ever matches a directory — so the symlink shows up
+  // as untracked and every worktree is born dirty.
+  const mediaIgnores = env.adapters.flatMap((a) => a.mediaPaths?.() ?? []).map((m) => m.replace(/\/$/, ""));
+  const missing = [...IGNORES, ...mediaIgnores].filter((l) => !cur.split("\n").includes(l));
   if (missing.length) { await appendFile(gi, `\n# wt\n${missing.join("\n")}\n`); notes.push(`.gitignore += ${missing.join(", ")}`); }
+
+  // Changesets are meant to be committed, so this must be tracked rather than ignored:
+  // seed it here so a new worktree inherits it instead of gaining an untracked db/.
+  const keep = path.join(env.repoRoot, env.cfg.db.changes_dir, ".gitkeep");
+  if (!existsSync(keep)) {
+    await mkdir(path.dirname(keep), { recursive: true });
+    await writeFile(keep, "");
+    notes.push(`created ${path.relative(env.repoRoot, keep)} — commit it so worktrees start clean`);
+  }
 
   const ddevCfg = path.join(env.repoRoot, ".ddev", "config.yaml");
   if (existsSync(ddevCfg)) {

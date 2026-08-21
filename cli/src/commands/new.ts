@@ -17,7 +17,7 @@ export interface NewOpts { from?: string; install?: boolean; level?: number; tas
 export function makeRecord(env: Env, name: string, branch: string, level: number, o: Partial<NewOpts>, mainUrl?: string): WorktreeRecord {
   const lv = level as WorktreeRecord["level"];
   return {
-    name, branch, path: worktreePath(env, name), level: lv, framework: frameworkOf(env.adapters),
+    name, branch, from: o.from, path: worktreePath(env, name), level: lv, framework: frameworkOf(env.adapters),
     db: lv >= 2 ? (o.db ?? (lv === 4 ? "fresh" : env.cfg.defaults.db)) : "none",
     // level 4 is "clean": fresh DB *and* empty media — test it before the >= 3 case
     media: lv >= 2 ? (o.media ?? (lv === 4 ? "none" : lv >= 3 ? "copy" : env.cfg.defaults.media)) : "none",
@@ -49,7 +49,9 @@ export async function cmdNew(env: Env, branch: string, o: NewOpts) {
     if (existsSync(worktreePath(env, name))) throw new WtError(EXIT.NAME_CLASH, `path exists: ${worktreePath(env, name)}`);
 
     const from = o.from ?? (await currentRef(env.run, env.repoRoot));
-    const rec = makeRecord(env, name, branch, level, o, mainUrl);
+    // pass the *resolved* base ref, not o.from — it is usually undefined, and `wt finish`
+    // needs to know which branch to merge back into
+    const rec = makeRecord(env, name, branch, level, { ...o, from }, mainUrl);
     const ctx = ctxFor(env, rec);
 
     // Warm pool: claim an idle entry when it matches level/db/media and caller didn't opt out.

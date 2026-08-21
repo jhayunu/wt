@@ -115,6 +115,11 @@ step "wt init seeds the worktree rule into the repo's CLAUDE.md"
 $WT init >/dev/null || fail "init failed"
 assert_contains "$(cat CLAUDE.md)" "Decide at plan time" "CLAUDE.md carries the rule (travels with the repo)"
 $WT init >/dev/null || fail "second init failed"
+# What init adds to .gitignore has to be committed, or a worktree cut from this branch
+# will not have it and will be born dirty with wt's own generated files.
+assert_contains "$(cat .gitignore)" "wp-content/uploads" "init ignores the media path without a trailing slash (it becomes a symlink)"
+assert_contains "$(cat .gitignore)" ".ddev/config.wt.local.yaml" "init ignores the generated ddev override"
+git add -A && git commit -qm "wt init"
 [ "$(grep -c 'wt:worktrees' CLAUDE.md)" = "1" ] || fail "init duplicated the CLAUDE.md block"
 ok "init is idempotent"
 
@@ -204,6 +209,39 @@ grep -n . "$WT_SHIM_LOG" | awk -F: '
 ok "pooled database is snapshotted before delete and restored after start"
 $WT --json destroy feat-pooled >/dev/null || fail "destroy feat-pooled failed"
 ok "claimed worktree destroyed"
+
+# ----------------------------------------------------------------- finish --
+step "wt finish merges the branch back and destroys the worktree"
+$WT --json new feat/fin --task "finish test" >/dev/null || fail "creating feat-fin failed"
+echo "a change" > .wt/worktrees/feat-fin/FINISH.md
+git -C .wt/worktrees/feat-fin add FINISH.md
+git -C .wt/worktrees/feat-fin commit -qm "work on the branch"
+
+# dry run must change nothing at all
+BEFORE="$(git rev-parse HEAD)"
+OUT="$($WT --json finish feat-fin)"
+assert_contains "$OUT" '"confirmed":false'  "dry run reports it did not act"
+# master-dev, not "main": proves finish merges back into the branch the worktree was cut
+# from rather than a hardcoded trunk name
+assert_contains "$OUT" '"into":"master-dev"' "merges into the branch the worktree came from"
+[ "$(git rev-parse HEAD)" = "$BEFORE" ] || fail "dry run moved HEAD"
+[ -d ".wt/worktrees/feat-fin" ] || fail "dry run destroyed the worktree"
+ok "dry run is inert"
+
+# refuses to throw away uncommitted work
+echo "uncommitted" > .wt/worktrees/feat-fin/SCRATCH.md
+if $WT --json finish feat-fin --confirm >/dev/null 2>&1; then fail "finished despite uncommitted changes"; fi
+ok "refuses while the worktree has uncommitted changes"
+rm .wt/worktrees/feat-fin/SCRATCH.md
+
+$WT --json finish feat-fin --confirm >/dev/null || fail "finish --confirm failed"
+[ -f "FINISH.md" ] || fail "the branch's file is not on main after the merge"
+ok "branch content merged into main"
+git log -1 --pretty=%s | grep -q "Merge feat/fin" || fail "no merge commit"
+ok "merge commit created"
+if [ -d ".wt/worktrees/feat-fin" ]; then fail "worktree survived finish"; fi
+if git branch --list feat/fin | grep -q .; then fail "branch survived finish"; fi
+ok "worktree and branch removed"
 
 # ---------------------------------------------------------------- destroy --
 step "wt destroy feat-x"

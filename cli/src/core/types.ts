@@ -40,6 +40,7 @@ export interface RepoConfig {
 export interface WorktreeRecord {
   name: string;                 // DDEV project name / directory name (slug)
   branch: string;
+  from?: string;                // ref this branch was created from; `wt finish` merges back into it
   path: string;                 // absolute
   level: Level;
   framework: Framework;

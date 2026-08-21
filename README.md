@@ -112,6 +112,10 @@ wt ls                                     # what exists, at which level, owned b
 wt context                                # where am I? (injected into every Claude Code prompt)
 wt pool fill 2                            # pre-build environments; wt new then claims one in seconds
 wt db apply feat-checkout                 # replay committed changesets, idempotent via a ledger table
+
+# when the work is done: merge back into the branch it came from, then clean up
+wt finish feat-checkout                    # prints the plan, changes nothing
+wt finish feat-checkout --confirm          # merge --no-ff, delete branch, destroy env
 wt gc                                     # remove stale or merged worktrees
 ```
 

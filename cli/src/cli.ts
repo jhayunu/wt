@@ -9,6 +9,7 @@ import { cmdInit } from "./commands/init.js";
 import { cmdSkillInstall } from "./commands/skill.js";
 import { cmdTool, TOOLS } from "./commands/tools.js";
 import { cmdPromote } from "./commands/promote.js";
+import { cmdFinish } from "./commands/finish.js";
 import { cmdPoolFill, cmdPoolLs, cmdPoolDrain } from "./commands/pool.js";
 import { cmdContext } from "./commands/context.js";
 import { dbSnapshot, dbRestore, dbReset, dbDiff, dbExport, dbApply, dbStatus, dbSeed } from "./commands/db.js";
@@ -82,6 +83,15 @@ program.command("destroy <name>").description("remove environment, worktree and 
   .option("--keep-branch", "do not delete the git branch")
   .option("--force", "destroy even if owned by someone else with an active lease")
   .action(wrap(async (n, o) => cmdDestroy(await loadEnv(g()), n, { keepBranch: o.keepBranch, force: o.force })));
+program.command("finish <name>").description("merge the worktree back into its source branch, then destroy it")
+  .option("--confirm", "actually do it (without this, prints the plan and changes nothing)")
+  .option("--into <branch>", "merge into this branch instead of the one the worktree came from")
+  .option("--keep-branch", "do not delete the git branch after merging")
+  .option("--ff", "allow a fast-forward merge instead of always creating a merge commit")
+  .option("--skip-db-check", "finish even though database changes were never exported (they are lost)")
+  .option("--force", "override ownership lease")
+  .action(wrap(async (n, o) => cmdFinish(await loadEnv(g()), n, { confirm: o.confirm, into: o.into, keepBranch: o.keepBranch, noFf: o.ff ? false : undefined, skipDbCheck: o.skipDbCheck, force: o.force })));
+
 program.command("gc").description("remove stale or merged worktrees")
   .option("--older-than <dur>", "e.g. 12h, 7d").option("--merged", "remove worktrees whose branch is merged into HEAD")
   .option("--prune", "also run `docker builder prune -f` (affects every project on this machine)")

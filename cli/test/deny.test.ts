@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { parseDeny, denyFor, denyWhere, isDenied } from "../src/providers/deny.js";
 import { statementDelta } from "../src/providers/snapshot-diff.js";
+import path from "node:path";
 import type { RepoConfig } from "../src/core/types.js";
 
 const cfg = (deny_rows: Record<string, string[]>) =>
@@ -67,4 +68,20 @@ test("statementDelta is empty when nothing changed", () => {
   const d = statementDelta(rows, [...rows]);
   assert.deepEqual(d.upserts, []);
   assert.deepEqual(d.removed, []);
+});
+
+test("withRepoLock is re-entrant within one process", async () => {
+  const { mkdtemp } = await import("node:fs/promises");
+  const os = await import("node:os");
+  const { withRepoLock } = await import("../src/core/lock.js");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "wt-lock-"));
+  let inner = false;
+  // the inner call must not wait on the lock its own caller holds (wt finish → cmdDestroy)
+  await withRepoLock(dir, async () => {
+    await withRepoLock(dir, async () => { inner = true; });
+  });
+  assert.equal(inner, true);
+  // and the lock must be genuinely released afterwards
+  await withRepoLock(dir, async () => { inner = false; });
+  assert.equal(inner, false);
 });
