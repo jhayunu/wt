@@ -13,6 +13,14 @@ One command gives a git worktree its own running environment (hostname, containe
 
 The plugin ships the `wt-worktree-env` skill, a `/wt <branch> "<task>"` command, a SessionStart hook that reports environment health, and a Stop hook that reminds about live worktrees. It runs the CLI from `${CLAUDE_PLUGIN_ROOT}/bin/wt` (builds itself on first use) or uses a global `wt` when present.
 
+On a new machine, follow the install with:
+
+```bash
+wt skill install     # or: "$CLAUDE_PLUGIN_ROOT"/bin/wt skill install
+```
+
+That copies the skill to `~/.claude/skills/wt` **and** adds a "Worktrees (wt)" section to `~/.claude/CLAUDE.md` — the rule that tells an agent *when* to take a worktree (at plan time, before the first edit), scoped to repos that have a `.wt.yml`. A skill only fires once a task is under way; CLAUDE.md is read first, which is why the rule lives there. `--no-claude-md` opts out, `--project` writes both into the current repo instead.
+
 **As a global CLI**
 
 ```bash
@@ -32,10 +40,10 @@ cd cli && npm install && npm run build && npm link
 wt clone git@github.com:org/myshop.git   # new machine: clone + init + ddev start (+ --seed)
 # or, for an existing checkout:
 cd ~/sites/myshop          # your canonical checkout (DDEV project "myshop")
-wt init                    # writes .wt.yml, .gitignore entries, prints follow-ups
-# follow the printed ACTION lines: remove `name:` from .ddev/config.yaml (DDEV then names
-# projects after the directory — which is exactly what worktrees need), add the
-# wp-config-wt.php include for WordPress.
+wt init                    # writes .wt.yml + .gitignore entries, adds the worktree rule to the repo's CLAUDE.md
+# Your .ddev/config.yaml may keep its `name:` — wt writes `name: <worktree>` into each
+# worktree's .ddev/config.wt.local.yaml, which DDEV merges on top. `.wt.yml: main` is
+# filled in from it. For WordPress, add the wp-config-wt.php include.
 ddev start
 ```
 

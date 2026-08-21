@@ -36,7 +36,7 @@ const wrap = (fn: (...a: any[]) => Promise<void>) => async (...a: any[]) => {
 
 program.command("new <branch>")
   .description("create a worktree and its environment")
-  .option("--from <ref>", "base ref when creating a new branch", "main")
+  .option("--from <ref>", "base ref when creating a new branch (default: main checkout's current branch)")
   .option("-l, --level <n>", "isolation level 0-4 (default: inferred)", (v) => Number(v))
   .option("-t, --task <text>", "what the agent will do; used to infer level")
   .option("--db <strategy>", "snapshot | dump | seedfile | fresh | none")
@@ -83,6 +83,7 @@ program.command("destroy <name>").description("remove environment, worktree and 
   .action(wrap(async (n, o) => cmdDestroy(await loadEnv(g()), n, { keepBranch: o.keepBranch, force: o.force })));
 program.command("gc").description("remove stale or merged worktrees")
   .option("--older-than <dur>", "e.g. 12h, 7d").option("--merged", "remove worktrees whose branch is merged into HEAD")
+  .option("--prune", "also run `docker builder prune -f` (affects every project on this machine)")
   .action(wrap(async (o) => cmdGc(await loadEnv(g()), o)));
 program.command("doctor [name]").description("check DDEV, DNS, config and (optionally) one worktree's health")
   .action(wrap(async (n) => cmdDoctor(await loadEnv(g()), n)));
@@ -90,6 +91,7 @@ program.command("doctor [name]").description("check DDEV, DNS, config and (optio
 const skill = program.command("skill").description("Claude Code integration");
 skill.command("install").description("copy the wt skill into ~/.claude/skills (or --project)")
   .option("--project", "install into this repo's .claude/skills instead of ~")
+  .option("--no-claude-md", "do not add the \"when to take a worktree\" rule to CLAUDE.md")
   .action(wrap(async (o) => cmdSkillInstall(await loadEnv(g()), o)));
 
 const db = program.command("db").description("database snapshots and change tracking");

@@ -39,7 +39,7 @@ Non-goals (v1)
 
 These are verified against current DDEV docs and are the reason DDEV is a good fit rather than an obstacle.
 
-1. **Project name from directory.** If `name:` is omitted from `.ddev/config.yaml`, DDEV derives the project name from the parent directory. DDEV documents this specifically for git worktrees and also offers the global setting `omit_project_name_by_default: true`. So a worktree at `…/myshop.wt/feat-checkout/` becomes project `feat-checkout` → `https://feat-checkout.ddev.site`, with its own `db` container, automatically.
+1. **Per-worktree project name.** `wt` writes `name: <worktree>` into the worktree's `.ddev/config.wt.local.yaml`; DDEV merges `config.*.yaml` over `config.yaml`, so that wins even when the repo pins its own `name:` (verified on DDEV v1.25.1 with `ddev utility configyaml`). A worktree at `…/.wt/worktrees/feat-checkout/` becomes project `feat-checkout` → `https://feat-checkout.ddev.site`, with its own `db` container. (Omitting `name:` altogether also works — DDEV then derives it from the directory, the pattern it documents for worktrees — but requiring that of every repo was a needless barrier: it renames the main project and moves its URL.)
 2. **Override files.** DDEV merges `.ddev/config.*.yaml` in lexicographic order; `config.local.yaml` and `config.*.local.yaml` are gitignored by default. `wt` writes all per-worktree settings to `.ddev/config.wt.local.yaml` and never touches the committed config.
 3. **One router, many projects.** All running projects share the DDEV router on 80/443 and get unique `*.ddev.site` hostnames. No port juggling.
 4. **Database tooling.** `ddev snapshot` / `snapshot restore`, `ddev export-db` / `import-db`, and `ddev wp` / `ddev artisan` / `ddev exec` cover cloning and URL rewriting without custom SQL.
@@ -348,7 +348,7 @@ Claude Code skill + hooks, MCP wrapper, `wt doctor` heuristics (URL leakage, idl
 | Topic | workspace-manager | wt |
 |---|---|---|
 | Layout | bare clone: `.bare/`, `.git` pointer, `spaces/<wt>`, `db/`, `files/` | main checkout + `.wt/worktrees/`; bare layout is a phase-3 option (`wt init --layout bare`) |
-| DDEV name | writes `name: <id>-<orig>` to `config.local.yaml` | omits `name:` → DDEV derives from directory (documented worktree pattern) |
+| DDEV name | writes `name: <id>-<orig>` to `config.local.yaml` | **adopted**: writes `name: <worktree>` to `config.wt.local.yaml`, so the repo may keep its own `name:` |
 | WordPress URLs | none (WP worktrees would keep main's URL) | `wp search-replace` hooks + `wp-config-wt.php` constants |
 | DB seed | `db/db.sql.gz` via `ddev pull prod`; safety export before import | **adopted** as `db: seedfile` + `wt db seed`; plus snapshot/dump from a running main |
 | Drupal | files dir, `settings.ddev.php` host, `drush cr/cim/deploy:hook` | **adopted** as the Drupal adapter |

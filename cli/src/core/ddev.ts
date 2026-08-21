@@ -26,7 +26,8 @@ export const ddev = {
   delete: (run: Runner, name: string) => run("ddev", ["delete", "-Oy", name], { allowFail: true }),
   exec: (run: Runner, cwd: string, args: string[]) => run("ddev", ["exec", ...args], { cwd }),
   snapshot: (run: Runner, cwd: string, name: string) => run("ddev", ["snapshot", "--name", name, "-y"], { cwd }),
-  snapshotRestore: (run: Runner, cwd: string, name: string) => run("ddev", ["snapshot", "restore", name, "-y"], { cwd }),
+  // `ddev snapshot restore` has no -y/--yes flag (verified against DDEV v1.25.1) — passing one aborts the command.
+  snapshotRestore: (run: Runner, cwd: string, name: string) => run("ddev", ["snapshot", "restore", name], { cwd }),
   exportDb: (run: Runner, cwd: string, file: string) => run("ddev", ["export-db", "--file", file, "--gzip=false"], { cwd }),
   importDb: (run: Runner, cwd: string, file: string) => run("ddev", ["import-db", "--file", file], { cwd }),
 };

@@ -61,7 +61,7 @@ export async function cmdDestroy(env: Env, name: string, o: { keepBranch?: boole
   });
 }
 
-export async function cmdGc(env: Env, o: { olderThan?: string; merged?: boolean }) {
+export async function cmdGc(env: Env, o: { olderThan?: string; merged?: boolean; prune?: boolean }) {
   const hours = o.olderThan ? parseDuration(o.olderThan) : Infinity;
   const victims: string[] = [];
   for (const r of Object.values(env.manifest.worktrees)) {
@@ -75,7 +75,8 @@ export async function cmdGc(env: Env, o: { olderThan?: string; merged?: boolean 
     if (age > hours || merged) victims.push(r.name);
   }
   for (const v of victims) await cmdDestroy(env, v, { keepBranch: !o.merged, force: false }).catch((e) => env.log(`skip ${v}: ${(e as Error).message}`));
-  if (victims.length) await env.run("docker", ["builder", "prune", "-f"], { allowFail: true });
+  // Only on request: `docker builder prune` hits every project on the machine, not just ours.
+  if (victims.length && o.prune) await env.run("docker", ["builder", "prune", "-f"], { allowFail: true });
   emit(env, { removed: victims }, [victims.length ? `removed: ${victims.join(", ")}` : "nothing to collect"]);
 }
 
@@ -87,9 +88,15 @@ export async function cmdDoctor(env: Env, name?: string) {
   checks.push({ check: `main project "${env.cfg.main}" running`, ok: mainStatus === "running", detail: mainStatus ?? "not found in ddev list" });
   const dns = await env.run("sh", ["-c", `getent hosts wt-probe.${env.cfg.tld} 2>/dev/null || dscacheutil -q host -a name wt-probe.${env.cfg.tld} 2>/dev/null || nslookup wt-probe.${env.cfg.tld} 2>/dev/null | tail -2`], { allowFail: true });
   checks.push({ check: `wildcard DNS *.${env.cfg.tld} → 127.0.0.1`, ok: /127\.0\.0\.1/.test(dns.stdout), detail: /127\.0\.0\.1/.test(dns.stdout) ? "ok" : "not resolving — offline? see ARCHITECTURE.md §7.5" });
-  const cfgFile = path.join(env.repoRoot, ".ddev", "config.yaml");
-  const hasName = await env.run("sh", ["-c", `grep -E '^name:' "${cfgFile}" 2>/dev/null`], { allowFail: true });
-  checks.push({ check: ".ddev/config.yaml omits `name:`", ok: hasName.exitCode !== 0, detail: hasName.exitCode === 0 ? `found "${hasName.stdout.trim()}" — remove it so worktrees get their own project name` : "ok" });
+  // wt writes `name:` into each worktree's config.wt.local.yaml, so main may pin its own
+  // name — what matters is that `.wt.yml: main` agrees with it, or "is main running?" checks
+  // a project that does not exist.
+  const { readDdevConfig } = await import("../core/ddevconfig.js");
+  const ddevCfg = await readDdevConfig(env.repoRoot);
+  const nameOk = !ddevCfg.name || ddevCfg.name === env.cfg.main;
+  checks.push({ check: "`.wt.yml: main` matches the DDEV project name", ok: nameOk,
+    detail: nameOk ? (ddevCfg.name ? `ok (${ddevCfg.name})` : `ok (derived from directory: ${env.cfg.main})`)
+                   : `.ddev/config.yaml says "${ddevCfg.name}", .wt.yml says "${env.cfg.main}" — set main: ${ddevCfg.name}` });
   const gi = await env.run("git", ["check-ignore", "-q", ".wt/manifest.json"], { cwd: env.repoRoot, allowFail: true });
   checks.push({ check: ".wt/ is gitignored", ok: gi.exitCode === 0, detail: gi.exitCode === 0 ? "ok" : "add `.wt/` to .gitignore" });
   if (name) {

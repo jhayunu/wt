@@ -65,13 +65,24 @@ step "scaffold a WordPress repo at $REPO"
 mkdir -p "$REPO/wp-content/uploads" "$REPO/.ddev"
 cd "$REPO"
 export WT_MAIN_APPROOT="$PWD"
-git init -q -b main && git config user.email smoke@example.com && git config user.name smoke
+# Deliberately NOT "main": wt must cut new branches from whatever the checkout has
+# checked out, not from a hardcoded trunk name.
+git init -q -b master-dev && git config user.email smoke@example.com && git config user.name smoke
 echo "<?php" > wp-config.php
-echo "type: wordpress" > .ddev/config.yaml
-printf 'main: myshop\ndb:\n  track_tables: [wp_options, wp_posts]\n' > .wt.yml
+# Deliberately pins `name:` — the common case. wt must still give each worktree its
+# own project name, and must take `main` from here when .wt.yml omits it.
+printf 'name: myshop\ntype: wordpress\n' > .ddev/config.yaml
+printf 'db:\n  track_tables: [wp_options, wp_posts]\n' > .wt.yml
 printf '.wt/\nwp-config-wt.php\n' > .gitignore
 git add -A && git commit -qm init
 ok "repo scaffolded"
+
+step "wt init seeds the worktree rule into the repo's CLAUDE.md"
+$WT init >/dev/null || fail "init failed"
+assert_contains "$(cat CLAUDE.md)" "Decide at plan time" "CLAUDE.md carries the rule (travels with the repo)"
+$WT init >/dev/null || fail "second init failed"
+[ "$(grep -c 'wt:worktrees' CLAUDE.md)" = "1" ] || fail "init duplicated the CLAUDE.md block"
+ok "init is idempotent"
 
 step "wt doctor"
 $WT doctor >/dev/null || fail "doctor exited non-zero"
@@ -90,6 +101,14 @@ ok "manifest records feat-x"
 assert_contains "$(cat .wt/worktrees/feat-x/wp-config-wt.php)" "feat-x.ddev.site" "generated wp-config points at the worktree URL"
 [ -f ".wt/worktrees/feat-x/.ddev/config.wt.local.yaml" ] || fail ".ddev/config.wt.local.yaml not generated"
 ok "ddev override written"
+# main pins `name: myshop`; DDEV merges config.*.yaml on top, so the worktree must
+# name itself — otherwise it would register under main's project name and hijack it.
+assert_contains "$(cat .wt/worktrees/feat-x/.ddev/config.wt.local.yaml)" "name: feat-x" \
+                                                  "worktree config sets its own DDEV project name"
+assert_contains "$($WT --json doctor)" '"ok":true' "doctor is happy with a pinned name: in main"
+[ "$(git -C .wt/worktrees/feat-x rev-parse --abbrev-ref HEAD)" = "feat/x" ] || fail "worktree is not on feat/x"
+git merge-base --is-ancestor master-dev feat/x || fail "feat/x was not cut from the checked-out branch"
+ok "branch cut from the current branch, not a hardcoded trunk"
 git -C . worktree list | grep -q "feat-x" || fail "git does not know about the worktree"
 ok "git worktree registered"
 
@@ -105,6 +124,13 @@ assert_contains "$HOOKS" "search-replace 'https://myshop.ddev.site' 'https://fea
 grep -n . "$WT_SHIM_LOG" | awk -F: '/snapshot restore/{r=$1} /^[0-9]+:start -y/{if(r&&$1>r){found=1}} END{exit !found}' \
   || fail "no ddev start after snapshot restore — URL fixup hooks would never run"
 ok "ddev start runs after snapshot restore (hooks fire on restored DB)"
+# `ddev snapshot restore` has no -y/--yes flag; passing one makes real DDEV abort.
+grep -E '^snapshot restore ' "$WT_SHIM_LOG" | grep -q -- ' -y' && fail "snapshot restore was called with -y"
+ok "snapshot restore called without the flag DDEV does not have"
+
+step "bad --level is rejected"
+$WT --json new feat/bogus --level 9 >/dev/null 2>&1 && fail "--level 9 was accepted"
+assert_contains "$($WT --json new feat/bogus --level nine 2>&1)" '"ok":false' "non-numeric --level rejected"
 
 # ---------------------------------------------------------------- ls / url --
 step "wt ls / wt url"

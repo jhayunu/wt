@@ -1,11 +1,21 @@
 ---
 name: wt-worktree-env
-description: Use `wt` to get an isolated, runnable environment (own URL, DB, media) for every branch you work on in WordPress, Laravel or React repos that use DDEV. Use at the start of any task that changes code, before running the app or tests, and clean up at the end.
+description: Use `wt` to get an isolated, runnable environment (own URL, DB, media) for every branch you work on in WordPress, Laravel or React repos that use DDEV. Decide while planning: any plan that edits files, runs migrations or runs a test suite starts with `wt new`. Also use before running the app or tests, and clean up at the end.
 ---
 
 # Working in an isolated worktree with `wt`
 
 You are in a repo that uses `wt` (per-worktree DDEV environments). Never edit files or run migrations in the main checkout. Always work inside a worktree you created.
+
+## Deciding you need one — at plan time
+
+Do not wait to be told. The decision belongs in the plan, before the first edit:
+
+- The plan edits files, runs migrations, or runs a test suite → its **first step** is `wt new`, and every later step happens inside `worktree.path`.
+- The work is read-only — answering a question, reading code, reviewing a diff → stay in the main checkout, take nothing.
+- No plan at all (a one-line ask that turns into an edit) → take the worktree **before** the first edit, not after it. Retrofitting one means moving uncommitted work between trees.
+
+State the choice in one line ("taking a level 1 worktree: this touches four files") and carry on — this is a standing instruction, not something to ask permission for. Several agents share this machine; the collisions a worktree prevents (one session's `git reset` erasing another's work, a test suite reading half-written files) are silent and expensive.
 
 ## Start of task
 

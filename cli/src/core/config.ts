@@ -4,6 +4,7 @@ import path from "node:path";
 import YAML from "yaml";
 import { z } from "zod";
 import type { Level, Manifest, RepoConfig } from "./types.js";
+import { readDdevConfig } from "./ddevconfig.js";
 
 const level = z.union([z.literal(0), z.literal(1), z.literal(2), z.literal(3), z.literal(4)]);
 
@@ -71,9 +72,13 @@ export async function loadRepoConfig(repoRoot: string): Promise<RepoConfig> {
   const file = path.join(repoRoot, CONFIG_FILE);
   let raw: unknown = {};
   if (existsSync(file)) raw = YAML.parse(await readFile(file, "utf8")) ?? {};
-  // `main` defaults to the repo directory name (same rule DDEV uses when name is omitted)
-  const withDefault = { main: path.basename(repoRoot), ...(raw as object) };
-  return RepoConfigSchema.parse(withDefault) as RepoConfig;
+  // Defaults come from the checkout's own DDEV config when it has one: `name:`
+  // if the repo pins a project name, otherwise the directory name (DDEV's own
+  // rule), and `project_tld` so custom TLDs work without repeating them here.
+  const ddevCfg = await readDdevConfig(repoRoot);
+  const defaults: Record<string, unknown> = { main: ddevCfg.name ?? path.basename(repoRoot) };
+  if (ddevCfg.tld) defaults.tld = ddevCfg.tld;
+  return RepoConfigSchema.parse({ ...defaults, ...(raw as object) }) as RepoConfig;
 }
 
 export function manifestPath(repoRoot: string) { return path.join(repoRoot, ".wt", "manifest.json"); }

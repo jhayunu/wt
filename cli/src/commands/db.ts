@@ -1,5 +1,6 @@
 import path from "node:path";
 import { ddev } from "../core/ddev.js";
+import { saveManifest } from "../core/config.js";
 import { ctxFor, emit, getRecord, type Env } from "../core/context.js";
 import { EXIT, WtError, type ChangeSet } from "../core/types.js";
 
@@ -14,6 +15,8 @@ export async function dbSnapshot(env: Env, name: string, snap?: string) {
   const s = snap ?? `wt-${Date.now()}`;
   await ddev.snapshot(env.run, r.path, s);
   r.snapshots.push(s);
+  // without this the name is lost when the process exits, and `wt db restore <name>` finds nothing
+  if (!env.opts.dryRun) await saveManifest(env.repoRoot, env.manifest);
   emit(env, { snapshot: s }, [`snapshot ${s}`]);
 }
 

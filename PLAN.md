@@ -37,7 +37,7 @@ Re-run it (and add assertions) whenever you touch `core/planner.ts` or a command
 
 Use a throwaway WordPress DDEV project. Do not use a client site.
 
-1. `cd <site> && wt init` → follow ACTION lines: remove `name:` from `.ddev/config.yaml`; add to `wp-config.php` above the settings block:
+1. `cd <site> && wt init` → follow ACTION lines. The repo may keep its `name:`; `wt` names each worktree in its own override. For WordPress, add to `wp-config.php` above the settings block:
    `if (file_exists(__DIR__ . '/wp-config-wt.php')) require __DIR__ . '/wp-config-wt.php';`
 2. `ddev start` (main), `wt doctor` must be all ✓.
 3. `wt new feat/test --task "smoke test"` → expect `https://feat-test.ddev.site` to load, logged-in admin works, media shows (symlinked).

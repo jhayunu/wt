@@ -60,7 +60,10 @@ export const snapshotDiff: DbChangeProvider = {
     cs.schema = ddlDiff(before, after);
     for (const t of ctx.cfg.db.track_tables) {
       if (ctx.cfg.db.deny_tables.includes(t)) continue;
-      const b = new Set(splitStatements(await readFile(path.join(dir, "data", `${t}.sql`), "utf8")));
+      // a table added to track_tables after this worktree was created has no baseline file:
+      // treat it as "was empty", not as a crash
+      const bFile = path.join(dir, "data", `${t}.sql`);
+      const b = new Set(splitStatements(existsSync(bFile) ? await readFile(bFile, "utf8") : ""));
       const a = new Set(splitStatements(await dumpTable(ctx, t)));
       let n = 0;
       for (const s of a) if (!b.has(s)) n++;

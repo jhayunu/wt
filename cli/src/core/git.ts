@@ -7,6 +7,19 @@ export async function repoRoot(run: Runner, cwd = process.cwd()): Promise<string
   return common.endsWith("/.git") ? common.slice(0, -5) : common.replace(/\/\.git$/, "");
 }
 
+/**
+ * Ref that `wt new` cuts a new branch from when --from is omitted: whatever the
+ * main checkout has checked out. Defaulting to a hardcoded "main" breaks every
+ * repo whose trunk is called something else.
+ */
+export async function currentRef(run: Runner, root: string): Promise<string> {
+  const r = await run("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: root, allowFail: true });
+  const b = r.stdout.trim();
+  if (b && b !== "HEAD") return b;
+  const sha = await run("git", ["rev-parse", "HEAD"], { cwd: root, allowFail: true });
+  return sha.stdout.trim() || "HEAD";
+}
+
 export async function branchExists(run: Runner, root: string, branch: string) {
   const r = await run("git", ["branch", "--list", branch], { cwd: root });
   return r.stdout.trim().length > 0;
