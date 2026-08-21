@@ -1,0 +1,12 @@
+{
+  "name": "gitworktrees",
+  "owner": { "name": "Jhay" },
+  "plugins": [
+    {
+      "name": "wt",
+      "source": "./cli",
+      "description": "Per-worktree DDEV environments for AI agents (WordPress, Laravel, React)",
+      "version": "0.1.0"
+    }
+  ]
+}

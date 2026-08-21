@@ -1,0 +1,63 @@
+{
+  "name": "@jhayar/wt",
+  "version": "0.2.0",
+  "description": "Per-worktree DDEV environments for AI agents (WordPress, Laravel, React)",
+  "type": "module",
+  "bin": {
+    "wt": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "commands",
+    "hooks",
+    "scripts",
+    "bin",
+    ".claude-plugin",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx test/*.test.ts",
+    "test:smoke": "bash test/smoke.sh",
+    "test:all": "npm run test && npm run test:smoke",
+    "prepare": "tsc -p tsconfig.json",
+    "prepack": "npm run build"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "execa": "^9.3.0",
+    "yaml": "^2.5.0",
+    "zod": "^3.23.8",
+    "proper-lockfile": "^4.1.2",
+    "picocolors": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.5.0",
+    "@types/proper-lockfile": "^4.1.4",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jhayar/wt.git"
+  },
+  "keywords": [
+    "ddev",
+    "git-worktree",
+    "wordpress",
+    "laravel",
+    "react",
+    "ai-agents",
+    "claude-code"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  }
+}

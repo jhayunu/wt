@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: cli/package-lock.json
+
+      # `prepare` builds dist/, so this also covers the build.
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+      # Shim-based end-to-end run: no Docker, but exercises planner + engine.
+      - name: smoke (fake ddev)
+        run: npm run test:smoke
+        env:
+          # git needs an identity for the scratch repo the smoke test creates
+          GIT_AUTHOR_NAME: ci
+          GIT_AUTHOR_EMAIL: ci@example.com
+          GIT_COMMITTER_NAME: ci
+          GIT_COMMITTER_EMAIL: ci@example.com

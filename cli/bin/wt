@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Runs wt from this plugin checkout. Uses a global `wt` if present, else builds once and runs dist.
+if command -v wt >/dev/null 2>&1 && [ -z "$WT_FORCE_LOCAL" ]; then exec wt "$@"; fi
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+if [ ! -f "$ROOT/dist/cli.js" ]; then
+  (cd "$ROOT" && npm install --silent --no-audit --no-fund && npm run -s build) >&2 || { echo "wt: build failed in $ROOT" >&2; exit 6; }
+fi
+exec node "$ROOT/dist/cli.js" "$@"
