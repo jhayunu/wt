@@ -198,16 +198,26 @@ what was created and nothing else.
 
 ## Maturity
 
-v0.2, and honest about what that means:
+v0.3, and honest about what that means:
 
-- **Verified on real DDEV** (v1.25.1, a Laravel + React project): levels 0 and 1 end to end —
-  creation, tool routing into main's container, dependency handling, destroy.
-- **Verified against a `ddev` shim and unit tests only**: levels 2–4, i.e. per-worktree
-  databases, media modes, the warm pool and `wt db diff/export/apply`. The design is settled and
-  every command is exercised by `npm run test:all`, but these paths have not yet met real
-  containers. Use a throwaway project first.
+- **Verified on real DDEV** (v1.25.1):
+  - levels 0 and 1 on a Laravel + React project — creation, tool routing into main's
+    container, dependency handling, destroy;
+  - level 2 on a WordPress project, with mutagen enabled — database cloned by snapshot,
+    URL rewriting, symlinked media served through the router, `wt db diff/export/apply`
+    round-tripping, the warm pool claimed with its data intact, `wt finish`, and destroy
+    leaving nothing behind.
+- **Verified against a `ddev` shim and unit tests only**: levels 3 and 4, the media `copy`
+  and `proxy` modes, and the Drupal and Laravel change providers.
 - Not built yet: level 4 fresh installs, `--db subset`, anonymise-on-clone, `wt db rollback`,
   React `--pair`, WordPress multisite, a Liquibase provider, an MCP wrapper.
+
+That first real-DDEV run is worth being blunt about: it found eight bugs, and three of them
+could not have been caught by the shim — a fake `ddev delete` has no database volume to
+drop, and a fake `ddev exec` has no shell to mangle backticks. The warm pool handed over an
+empty database, `wt db apply` could never replay a changeset, and `wt db export` wrote whole
+tables including `mailserver_pass`. All are fixed and covered by regressions. Treat
+"shim-verified" in the list above as weaker evidence than it sounds.
 
 Bug reports from real projects are the most useful thing you can contribute right now.
 
