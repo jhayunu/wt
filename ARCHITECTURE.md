@@ -186,6 +186,12 @@ WordPress also needs uploads URL coherence: after search-replace, `https://feat-
 
 Placing worktrees *inside* main's tree (gitignored `.wt/`) means they are automatically shared with Docker, sibling symlinks resolve, and `ddev exec` in main can reach them (level 1). The directory name is the DDEV project name, so `wt` slugifies branch names (`feat/checkout` → `feat-checkout`) and enforces DNS-safe, ≤ 63 chars, unique across `ddev list`.
 
+**But not inside main's file sync.** Where DDEV uses Mutagen (the default on macOS and Windows), everything under the approot is synced into a Docker volume — so worktrees inside it put every worktree's `vendor/` and `node_modules/` into main's sync for files nobody reads through main's URL, and worse: `wt destroy` deletes a directory tree Mutagen is watching. If the container writes anything inside that tree at the same time (a stray `.DS_Store` is enough), Mutagen cannot reconcile "parent deleted on alpha" against "child created on beta", the session wedges with `unable to flush`, and **main will not start at all**.
+
+The fix cannot be a Mutagen `ignore:` — an ignored path does not exist inside the container, which is exactly what level 0/1 routing needs. `upload_dirs` does both halves: DDEV bind-mounts those directories into the web container *and* excludes them from Mutagen (the same mechanism its own performance docs recommend for `node_modules`). So `wt init` puts the worktrees directory in `upload_dirs` via `.ddev/config.wt.local.yaml`, and `wt doctor` fails if it is missing.
+
+Two details, verified on DDEV v1.25.1: those paths are resolved relative to the **docroot**, not the approot (`.wt/worktrees` under `docroot: public` silently means `public/.wt/worktrees` and excludes nothing — hence `../.wt/worktrees`), and the setting *replaces* the project's list rather than extending it, so `wt` reads the effective value and appends. It appends rather than prepends because `ddev import-files` and `DDEV_FILES_DIR` use the first entry.
+
 ## 7.5 Networking: zero-disturbance routing
 
 Goal: creating or destroying one agent's environment must not restart Docker, the router, or any other agent's containers.

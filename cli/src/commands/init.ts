@@ -1,9 +1,11 @@
 import { existsSync } from "node:fs";
 import { appendFile, readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
+import YAML from "yaml";
 import { CONFIG_FILE } from "../core/config.js";
 import { detectAdapters, frameworkOf } from "../adapters/index.js";
-import { readDdevConfig } from "../core/ddevconfig.js";
+import { effectiveUploadDirs, readDdevConfig, type DdevProjectConfig } from "../core/ddevconfig.js";
+import { RESET_HINT, mutagenInPlay, planExclusion } from "../core/mutagen.js";
 import { ensureClaudeMd, REPO_BLOCK } from "../core/claudemd.js";
 import { emit, type Env } from "../core/context.js";
 
@@ -69,15 +71,45 @@ const CLAUDE_BLOCK = [
   "",
 ].join("\n");
 
+const LOCAL_CFG = path.join(".ddev", "config.wt.local.yaml");
+
+const EXCLUSION_HEADER = [
+  "# wt-generated. Keeps the worktrees directory out of main's Mutagen sync.",
+  "#",
+  "# Worktrees live inside the approot on purpose, which would otherwise put every worktree's",
+  "# vendor/ and node_modules/ inside main's sync — and make `wt destroy` race the container",
+  "# for a directory Mutagen is watching, wedging the session with \"unable to flush\".",
+  "# upload_dirs is the one setting that both bind-mounts a directory into the web container",
+  "# (so level 0/1 tool routing still reaches it) and excludes it from Mutagen.",
+  "#",
+  "# Paths are relative to the docroot. upload_dirs replaces rather than appends, so a real",
+  `# upload directory must be listed here too. After changing this file, ${RESET_HINT}.`,
+].join("\n");
+
+/**
+ * Adds the worktrees directory to main's `upload_dirs`, via the one DDEV file wt is allowed
+ * to write. See core/mutagen.ts for why upload_dirs and not a Mutagen `ignore`.
+ */
+async function excludeWorktreesFromMutagen(env: Env, ddev: DdevProjectConfig): Promise<string[]> {
+  if (!mutagenInPlay(env.repoRoot, ddev)) return [];
+  const plan = planExclusion(ddev.docroot, env.cfg.worktrees_dir, await effectiveUploadDirs(env.repoRoot));
+  if (plan.present) return [`${LOCAL_CFG}: ${env.cfg.worktrees_dir} is already excluded from Mutagen — left untouched`];
+
+  const p = path.join(env.repoRoot, LOCAL_CFG);
+  const existing = existsSync(p) ? ((YAML.parse(await readFile(p, "utf8")) ?? {}) as Record<string, unknown>) : {};
+  await writeFile(p, `${EXCLUSION_HEADER}\n${YAML.stringify({ ...existing, upload_dirs: plan.uploadDirs })}`);
+  return [`${LOCAL_CFG}: upload_dirs += ${plan.entry} — keeps ${env.cfg.worktrees_dir} out of Mutagen while still bind-mounting it into the web container; ${RESET_HINT}`];
+}
+
 export async function cmdInit(env: Env) {
   const notes: string[] = [];
   const cfgPath = path.join(env.repoRoot, CONFIG_FILE);
   const fw = frameworkOf(await detectAdapters(env.repoRoot, "auto"));
+  const ddev = await readDdevConfig(env.repoRoot);
   if (existsSync(cfgPath)) notes.push(`${CONFIG_FILE} exists — left untouched`);
   else {
-    const ddevCfg = await readDdevConfig(env.repoRoot);
-    const main = ddevCfg.name ?? path.basename(env.repoRoot);
-    await writeFile(cfgPath, TEMPLATE(main, fw, ddevCfg.tld));
+    const main = ddev.name ?? path.basename(env.repoRoot);
+    await writeFile(cfgPath, TEMPLATE(main, fw, ddev.tld));
     notes.push(`wrote ${CONFIG_FILE} (framework: ${fw}, main: ${main})`);
   }
 
@@ -99,11 +131,10 @@ export async function cmdInit(env: Env) {
     notes.push(`created ${path.relative(env.repoRoot, keep)} — commit it so worktrees start clean`);
   }
 
-  const ddevCfg = path.join(env.repoRoot, ".ddev", "config.yaml");
-  if (existsSync(ddevCfg)) {
-    const y = await readFile(ddevCfg, "utf8");
-    const pinned = /^name:\s*(\S+)/m.exec(y)?.[1];
-    if (pinned) notes.push(`note: .ddev/config.yaml pins name: ${pinned}. That is fine — wt writes its own \`name:\` into each worktree's .ddev/config.wt.local.yaml, which DDEV merges on top. Just keep \`main: ${pinned}\` in ${CONFIG_FILE} in step with it.`);
+  const ddevCfgPath = path.join(env.repoRoot, ".ddev", "config.yaml");
+  if (existsSync(ddevCfgPath)) {
+    if (ddev.name) notes.push(`note: .ddev/config.yaml pins name: ${ddev.name}. That is fine — wt writes its own \`name:\` into each worktree's .ddev/config.wt.local.yaml, which DDEV merges on top. Just keep \`main: ${ddev.name}\` in ${CONFIG_FILE} in step with it.`);
+    notes.push(...(await excludeWorktreesFromMutagen(env, ddev)));
   } else notes.push("no .ddev/config.yaml found — run `ddev config` in this checkout first");
 
   // The rule that decides *when* to take a worktree belongs in the repo, not in a

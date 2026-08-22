@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Worktrees were inside main's Mutagen sync, and `wt destroy` could stop main from
+  starting.** Worktrees live inside the approot so sibling symlinks resolve and level 0/1
+  can borrow main's container — which also put every worktree's `vendor/` and
+  `node_modules/` into main's file sync, and made a destroy delete a tree Mutagen was
+  watching. One container-side write inside that tree (a `.DS_Store` will do) leaves a
+  conflict Mutagen cannot resolve, and the project then fails to start with
+  `unable to flush`. `wt init` now adds the worktrees directory to `upload_dirs`, which
+  bind-mounts it into the web container *and* excludes it from Mutagen — an `ignore:` alone
+  would have fixed the sync and broken level 0/1 routing. `wt doctor` fails when it is
+  missing. Existing projects: re-run `wt init`, then `ddev mutagen reset && ddev restart`.
+
 ## 0.3.0
 
 The first release with level 2 exercised against real DDEV (v1.25.1, WordPress, mutagen

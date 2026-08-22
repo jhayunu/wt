@@ -3,7 +3,17 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import YAML from "yaml";
 
-export interface DdevProjectConfig { name?: string; tld?: string }
+export interface DdevProjectConfig {
+  name?: string;
+  tld?: string;
+  /** `docroot:` — upload_dirs are resolved relative to *this*, not to the approot. */
+  docroot?: string;
+  /** `upload_dirs:`, verbatim. Absent and empty are different: empty means "explicitly none". */
+  uploadDirs?: string[];
+  performanceMode?: string;
+}
+
+const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 
 /**
  * The bits of the canonical checkout's .ddev/config.yaml that wt needs.
@@ -11,6 +21,9 @@ export interface DdevProjectConfig { name?: string; tld?: string }
  * `name` matters because a repo that pins its DDEV project name (most do) would
  * otherwise disagree with `.wt.yml: main`, and every "is main running?" check
  * would look up a project that does not exist.
+ *
+ * Reads the committed config only. `upload_dirs` may also come from a
+ * `config.*.yaml` override — `effectiveUploadDirs` handles that.
  */
 export async function readDdevConfig(repoRoot: string): Promise<DdevProjectConfig> {
   const f = path.join(repoRoot, ".ddev", "config.yaml");
@@ -18,10 +31,30 @@ export async function readDdevConfig(repoRoot: string): Promise<DdevProjectConfi
   try {
     const y = (YAML.parse(await readFile(f, "utf8")) ?? {}) as Record<string, unknown>;
     return {
-      name: typeof y.name === "string" && y.name.trim() ? y.name.trim() : undefined,
-      tld: typeof y.project_tld === "string" && y.project_tld.trim() ? y.project_tld.trim() : undefined,
+      name: str(y.name),
+      tld: str(y.project_tld),
+      docroot: typeof y.docroot === "string" ? y.docroot.trim() : undefined,
+      uploadDirs: Array.isArray(y.upload_dirs) ? y.upload_dirs.filter((d): d is string => typeof d === "string") : undefined,
+      performanceMode: str(y.performance_mode),
     };
   } catch { return {}; }
+}
+
+/**
+ * `upload_dirs` as DDEV will see them: `config.wt.local.yaml` is merged on top of
+ * `config.yaml`, and for a list that means replacement, not append. Reading both is the
+ * only way to add an entry without silently dropping one the project already had.
+ */
+export async function effectiveUploadDirs(repoRoot: string): Promise<string[] | undefined> {
+  for (const f of ["config.wt.local.yaml", "config.yaml"]) {
+    const p = path.join(repoRoot, ".ddev", f);
+    if (!existsSync(p)) continue;
+    try {
+      const y = (YAML.parse(await readFile(p, "utf8")) ?? {}) as Record<string, unknown>;
+      if (Array.isArray(y.upload_dirs)) return y.upload_dirs.filter((d): d is string => typeof d === "string");
+    } catch { /* unparseable — fall through to the next file */ }
+  }
+  return undefined;
 }
 
 /**

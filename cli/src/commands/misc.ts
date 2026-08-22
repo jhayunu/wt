@@ -101,6 +101,18 @@ export async function cmdDoctor(env: Env, name?: string) {
   const gi = await env.run("git", ["check-ignore", "-q", ".wt/manifest.json"], { cwd: env.repoRoot, allowFail: true });
   checks.push({ check: ".wt/ is gitignored", ok: gi.exitCode === 0, detail: gi.exitCode === 0 ? "ok" : "add `.wt/` to .gitignore" });
 
+  // Worktrees inside main's approot are inside main's Mutagen sync unless excluded, and a
+  // `wt destroy` inside a watched tree can wedge the session so main will not start at all.
+  // Only worth checking where Mutagen is actually in play.
+  const { effectiveUploadDirs } = await import("../core/ddevconfig.js");
+  const { mutagenInPlay, planExclusion, RESET_HINT } = await import("../core/mutagen.js");
+  if (mutagenInPlay(env.repoRoot, ddevCfg)) {
+    const plan = planExclusion(ddevCfg.docroot, env.cfg.worktrees_dir, await effectiveUploadDirs(env.repoRoot));
+    checks.push({ check: `${env.cfg.worktrees_dir} is excluded from main's Mutagen sync`, ok: plan.present,
+      detail: plan.present ? `ok (upload_dirs: ${plan.entry})`
+        : `add "${plan.entry}" to upload_dirs in .ddev/config.wt.local.yaml (paths there are relative to the docroot), then ${RESET_HINT} — or just re-run \`wt init\`` });
+  }
+
   // A pool entry whose DDEV project has vanished will be handed to the next `wt new --pool`
   // and fail there instead of here, where it can actually be explained.
   const liveNames = new Set((await ddevList(env.run)).map((p) => p.name));

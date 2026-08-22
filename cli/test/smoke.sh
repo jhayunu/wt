@@ -123,6 +123,26 @@ git add -A && git commit -qm "wt init"
 [ "$(grep -c 'wt:worktrees' CLAUDE.md)" = "1" ] || fail "init duplicated the CLAUDE.md block"
 ok "init is idempotent"
 
+step "worktrees are kept out of main's Mutagen sync"
+# No mutagen.yml means DDEV is not syncing this project, and an upload_dirs entry would
+# retarget `ddev import-files` for no benefit — so init must leave it alone.
+[ -f .ddev/config.wt.local.yaml ] && fail "init wrote a ddev override for a project without mutagen"
+ok "no mutagen, no override"
+# DDEV writes this file when it starts a project with mutagen enabled.
+mkdir -p .ddev/mutagen && printf '#ddev-generated\nsync:\n' > .ddev/mutagen/mutagen.yml
+$WT init >/dev/null || fail "init failed with mutagen in play"
+assert_contains "$(cat .ddev/config.wt.local.yaml)" ".wt/worktrees" \
+  "init excludes the worktrees dir via upload_dirs (bind-mounted, so level 0/1 routing still works)"
+$WT doctor >/dev/null || fail "doctor failed after init added the exclusion"
+ok "doctor passes with the exclusion in place"
+# Without it, `wt destroy` deletes a tree Mutagen is watching and the session wedges with
+# "unable to flush" — a failure that stops main from starting at all, so doctor must catch it.
+printf 'upload_dirs:\n  - storage/app/public\n' > .ddev/config.wt.local.yaml
+assert_contains "$($WT --json doctor || true)" '"ok":false' "doctor fails when the exclusion is missing"
+$WT init >/dev/null || fail "init failed re-adding the exclusion"
+assert_contains "$(cat .ddev/config.wt.local.yaml)" "storage/app/public" \
+  "init appends rather than replaces — upload_dirs overrides the list, it does not extend it"
+
 step "wt doctor"
 $WT doctor >/dev/null || fail "doctor exited non-zero"
 ok "doctor ran"
