@@ -66,9 +66,11 @@ wt skill install     # or: "$CLAUDE_PLUGIN_ROOT"/bin/wt skill install
 ```
 
 That copies the skill into `~/.claude/skills/wt` **and** adds a short "Worktrees (wt)" section to
-`~/.claude/CLAUDE.md` — the rule that tells an agent *when* to take a worktree (at plan time,
-before the first edit), scoped to repos that have a `.wt.yml`. A skill only fires once a task is
+`~/.claude/CLAUDE.md` — the rule that tells an agent *when* to take a worktree (at plan time, for
+work that runs a test suite, runs migrations or boots the app, or spans more than a file or two —
+not for a typo), scoped to repos that have a `.wt.yml`. A skill only fires once a task is
 under way; CLAUDE.md is read before that, which is why the trigger has to live there too.
+Re-running refreshes that section in place, so a tightened rule reaches installs that already ran.
 `--no-claude-md` opts out; `--project` writes both into the current repo instead.
 
 **As a plain CLI** (no Claude Code required):

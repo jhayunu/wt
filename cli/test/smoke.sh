@@ -120,7 +120,14 @@ $WT init >/dev/null || fail "second init failed"
 assert_contains "$(cat .gitignore)" "wp-content/uploads" "init ignores the media path without a trailing slash (it becomes a symlink)"
 assert_contains "$(cat .gitignore)" ".ddev/config.wt.local.yaml" "init ignores the generated ddev override"
 git add -A && git commit -qm "wt init"
-[ "$(grep -c 'wt:worktrees' CLAUDE.md)" = "1" ] || fail "init duplicated the CLAUDE.md block"
+[ "$(grep -cF '<!-- wt:worktrees -->' CLAUDE.md)" = "1" ] || fail "init duplicated the CLAUDE.md block"
+[ "$(grep -cF '<!-- /wt:worktrees -->' CLAUDE.md)" = "1" ] || fail "CLAUDE.md block is missing its end marker"
+# The rule gets tightened over time, so a re-run must refresh an older block in place
+# rather than leave the stale wording sitting there.
+perl -0pi -e 's/\Q<!-- wt:worktrees -->\E.*?\Q<!-- \/wt:worktrees -->\E/<!-- wt:worktrees -->\n## Worktrees (wt)\n\nAncient rule.\n<!-- \/wt:worktrees -->/s' CLAUDE.md
+$WT init >/dev/null || fail "third init failed"
+grep -q "Ancient rule" CLAUDE.md && fail "init left a stale CLAUDE.md block in place"
+assert_contains "$(cat CLAUDE.md)" "Decide at plan time" "an older CLAUDE.md block is refreshed in place"
 ok "init is idempotent"
 
 step "worktrees are kept out of main's Mutagen sync"

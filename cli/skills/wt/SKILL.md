@@ -1,21 +1,22 @@
 ---
 name: wt
-description: Use `wt` to get an isolated, runnable environment (own URL, DB, media) for every branch you work on in WordPress, Drupal, Laravel or React repos that use DDEV. Decide while planning: any plan that edits files, runs migrations or runs a test suite starts with `wt new`. Also use before running the app or tests, and clean up at the end.
+description: Use `wt` to get an isolated, runnable environment (own URL, DB, media) for a branch you work on in WordPress, Drupal, Laravel or React repos that use DDEV. Decide while planning: work that runs a test suite, runs migrations or boots the app, or spans more than a file or two, starts with `wt new`. Small self-contained edits do not need one. Clean up at the end.
 ---
 
 # Working in an isolated worktree with `wt`
 
-You are in a repo that uses `wt` (per-worktree DDEV environments). Never edit files or run migrations in the main checkout. Always work inside a worktree you created.
+You are in a repo that uses `wt` (per-worktree DDEV environments). Never run migrations or a test suite against the main checkout.
 
-## Deciding you need one — at plan time
+## Deciding whether you need one — at plan time
 
-Do not wait to be told. The decision belongs in the plan, before the first edit:
+The decision belongs in the plan, before the first edit:
 
-- The plan edits files, runs migrations, or runs a test suite → its **first step** is `wt new`, and every later step happens inside `worktree.path`.
+- The work will **run** something — a test suite, a migration, the app itself — or spans more than a file or two → its **first step** is `wt new`, and every later step happens inside `worktree.path`.
 - The work is read-only — answering a question, reading code, reviewing a diff → stay in the main checkout, take nothing.
-- No plan at all (a one-line ask that turns into an edit) → take the worktree **before** the first edit, not after it. Retrofitting one means moving uncommitted work between trees.
+- The work is a small, self-contained edit that runs nothing — a typo, a comment, a version bump, one line of config → stay in the main checkout too. An environment costs more to raise and tear down than that edit is worth.
+- A small edit that grows a second file or needs a test run → take the worktree at that point, before the run.
 
-State the choice in one line ("taking a level 1 worktree: this touches four files") and carry on — this is a standing instruction, not something to ask permission for. Several agents share this machine; the collisions a worktree prevents (one session's `git reset` erasing another's work, a test suite reading half-written files) are silent and expensive.
+When the case is clear-cut, say so in one line ("taking a level 1 worktree: migrations plus the test suite") and carry on. When it is borderline — a task that looks simple but might spread — **ask first** rather than assuming. Getting it wrong in the other direction is not free either: several agents share this machine, and the collisions a worktree prevents (one session's `git reset` erasing another's work, a test suite reading half-written files) are silent and expensive.
 
 ## Start of task
 

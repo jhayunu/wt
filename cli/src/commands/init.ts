@@ -140,9 +140,12 @@ export async function cmdInit(env: Env) {
   // The rule that decides *when* to take a worktree belongs in the repo, not in a
   // machine-local config: that is what survives a new machine and reaches teammates.
   const claudeMd = path.join(env.repoRoot, "CLAUDE.md");
-  notes.push((await ensureClaudeMd(claudeMd, REPO_BLOCK)) === "present"
-    ? "CLAUDE.md already carries the wt worktree rule — left untouched"
-    : 'CLAUDE.md += "Worktrees (wt)" section — commit it: that is how the rule reaches other machines and other people');
+  const claudeMdNotes = {
+    present: "CLAUDE.md already carries the current wt worktree rule — left untouched",
+    updated: 'CLAUDE.md: "Worktrees (wt)" section refreshed to the current rule — commit it',
+    added: 'CLAUDE.md += "Worktrees (wt)" section — commit it: that is how the rule reaches other machines and other people',
+  };
+  notes.push(claudeMdNotes[await ensureClaudeMd(claudeMd, REPO_BLOCK)]);
 
   if (fw === "wordpress") notes.push("WordPress: add to wp-config.php before the settings block:  if (file_exists(__DIR__ . '/wp-config-wt.php')) require __DIR__ . '/wp-config-wt.php';");
   emit(env, { notes }, notes);

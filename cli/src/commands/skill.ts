@@ -23,7 +23,11 @@ export async function cmdSkillInstall(env: Env, o: { project?: boolean; claudeMd
   if (o.claudeMd !== false) {
     const what = await ensureClaudeMd(mdFile, o.project ? REPO_BLOCK : GLOBAL_BLOCK);
     claudeMd = mdFile;
-    lines.push(what === "present" ? `${mdFile}: worktree rule already present` : `${mdFile} += "Worktrees (wt)" rule (applies to any repo with a .wt.yml)`);
+    lines.push({
+      present: `${mdFile}: worktree rule already current`,
+      updated: `${mdFile}: worktree rule refreshed in place`,
+      added: `${mdFile} += "Worktrees (wt)" rule (applies to any repo with a .wt.yml)`,
+    }[what]);
   }
   lines.push("restart Claude Code (or /reload) to pick it up");
   emit(env, { installed: dst, claude_md: claudeMd }, lines);

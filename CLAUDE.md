@@ -31,7 +31,9 @@ cd cli && npm install && npm run typecheck && npm test && npm run build
 
 ## Where the "take a worktree" rule lives
 
-`core/claudemd.ts` owns the text, and it is written to two places on purpose: `wt init` puts the repo variant in the project's `CLAUDE.md` (travels with the repository — new machine, new teammate), and `wt skill install` puts the `.wt.yml`-scoped variant in `~/.claude/CLAUDE.md` (covers every repo on this machine). Both share the `<!-- wt:worktrees -->` marker, so re-running either is a no-op. Skills fire once a task is under way; CLAUDE.md is read before that, which is why the trigger has to be there and not only in `skills/wt/SKILL.md`.
+`core/claudemd.ts` owns the text, and it is written to two places on purpose: `wt init` puts the repo variant in the project's `CLAUDE.md` (travels with the repository — new machine, new teammate), and `wt skill install` puts the `.wt.yml`-scoped variant in `~/.claude/CLAUDE.md` (covers every repo on this machine). Both are wrapped in `<!-- wt:worktrees -->` … `<!-- /wt:worktrees -->`, and re-running either rewrites what is between those markers and nothing else — so a tightened rule reaches installs that already ran, instead of leaving the old wording in place forever. Blocks written before the end marker existed are still handled: the replacement stops at the next heading. Skills fire once a task is under way; CLAUDE.md is read before that, which is why the trigger has to be there and not only in `skills/wt/SKILL.md`.
+
+The threshold itself is deliberate: worktrees are for work that **runs** something (test suite, migrations, the app) or spans more than a file or two. A typo fix does not earn an environment, and borderline cases ask rather than assume — creating one nobody needed costs a teardown and a `max_concurrent` slot.
 
 ## Style
 TypeScript ESM, Node ≥ 20, `commander` + `execa` + `zod` + `yaml`. Small files, one concern each. Tests with `node --test` (`cli/test/*.test.ts`). Prefer extending the step builders over writing bespoke command logic.
