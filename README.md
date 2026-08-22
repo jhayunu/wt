@@ -85,14 +85,20 @@ git clone https://github.com/jhayunu/wt && cd wt/cli && npm install && npm run b
 
 ```bash
 cd ~/sites/myshop        # your canonical checkout, a working DDEV project
-wt init                  # writes .wt.yml + .gitignore entries, adds the worktree rule to CLAUDE.md
-ddev start
+ddev start               # start once first: wt needs to see whether Mutagen is in play
+wt init                  # writes .wt.yml + .gitignore entries, keeps worktrees out of the file
+                         # sync, adds the worktree rule to CLAUDE.md
 wt doctor                # every check should be ✓
 ```
 
 `wt clone git@github.com:org/myshop.git` does clone + init + `ddev start` in one go on a new
 machine. Your committed `.ddev/config.yaml` is never modified — `wt` writes only
-`.ddev/config.wt.local.yaml` inside each worktree, and DDEV merges it on top.
+`.ddev/config.wt.local.yaml`, both in main and inside each worktree, and DDEV merges it on top.
+
+Order matters slightly on a project that has never been started: `wt` detects Mutagen from
+`.ddev/mutagen/mutagen.yml`, which DDEV only writes on first start, so `wt init` on a cold
+project cannot yet know it needs the exclusion below. `wt doctor` catches that — re-run
+`wt init` and it fixes itself.
 
 ## Daily use
 
@@ -198,9 +204,28 @@ myshop/                              DDEV project "myshop"
 Everything `wt` generates is recorded in `.wt/manifest.json`, so `wt destroy` removes exactly
 what was created and nothing else.
 
+Worktrees live *inside* main's approot deliberately: sibling symlinks resolve, and level 0/1
+tool routing can reach them with `ddev exec --dir` in main's container. On macOS and Windows
+that collides with Mutagen, because everything under the approot is synced by default — so
+every worktree's `vendor/` and `node_modules/` would be copied into main's sync volume, and a
+`wt destroy` would delete a tree the container is still writing into. Mutagen cannot reconcile
+"parent deleted on one side" against "child created on the other"; the session wedges with
+`unable to flush` and **main stops starting at all**.
+
+So `wt init` adds the worktrees directory to main's `upload_dirs`. That is the one DDEV setting
+that bind-mounts a directory into the web container *and* excludes it from Mutagen — a plain
+`ignore:` would fix the sync and break level 0/1, since an ignored path does not exist in the
+container. Two things to know if you edit it by hand: paths there are relative to the
+**docroot**, not the approot, and `upload_dirs` in `config.wt.local.yaml` replaces rather than
+appends, so a project with a real upload directory must keep it in the list. `wt doctor` checks
+all of this. After any change: `ddev mutagen reset && ddev restart`.
+
+**Upgrading from ≤ 0.3.x:** re-run `wt init` in each repo, then
+`ddev mutagen reset && ddev restart`. Until you do, `wt doctor` will flag it.
+
 ## Maturity
 
-v0.3, and honest about what that means:
+v0.4, and honest about what that means:
 
 - **Verified on real DDEV** (v1.25.1):
   - levels 0 and 1 on a Laravel + React project — creation, tool routing into main's
@@ -214,12 +239,16 @@ v0.3, and honest about what that means:
 - Not built yet: level 4 fresh installs, `--db subset`, anonymise-on-clone, `wt db rollback`,
   React `--pair`, WordPress multisite, a Liquibase provider, an MCP wrapper.
 
-That first real-DDEV run is worth being blunt about: it found eight bugs, and three of them
-could not have been caught by the shim — a fake `ddev delete` has no database volume to
-drop, and a fake `ddev exec` has no shell to mangle backticks. The warm pool handed over an
-empty database, `wt db apply` could never replay a changeset, and `wt db export` wrote whole
-tables including `mailserver_pass`. All are fixed and covered by regressions. Treat
-"shim-verified" in the list above as weaker evidence than it sounds.
+Those real-DDEV runs are worth being blunt about, because they are where every serious bug so
+far has come from. The first one found eight, three of which the shim could not have caught —
+a fake `ddev delete` has no database volume to drop, and a fake `ddev exec` has no shell to
+mangle backticks. The warm pool handed over an empty database, `wt db apply` could never
+replay a changeset, and `wt db export` wrote whole tables including `mailserver_pass`. Then
+0.4.0 came from the worst one yet, on a real Laravel project rather than a test site: a
+`wt destroy` wedged the host project's file sync so thoroughly that **main would no longer
+start**, which no shim can reproduce because a fake `ddev start` has no Mutagen session to
+break. All are fixed and covered by regressions. Treat "shim-verified" in the list above as
+weaker evidence than it sounds.
 
 Bug reports from real projects are the most useful thing you can contribute right now.
 

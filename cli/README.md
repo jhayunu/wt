@@ -27,8 +27,10 @@ assumed.
 
 ```bash
 cd ~/sites/myshop          # your canonical checkout, a working DDEV project
-wt init                    # writes .wt.yml + .gitignore entries
-ddev start && wt doctor
+ddev start                 # start once first, so wt can see whether Mutagen is in play
+wt init                    # writes .wt.yml + .gitignore entries, excludes worktrees from the
+                           # file sync (re-run this when upgrading from ≤ 0.3.x)
+wt doctor                  # every check should be ✓
 
 wt new feat/checkout --task "add checkout page with new orders table"
 #   → https://feat-checkout.ddev.site
