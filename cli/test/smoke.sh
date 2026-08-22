@@ -273,3 +273,18 @@ ok "manifest cleaned"
 if git -C . worktree list | grep -q "feat-x"; then fail "git worktree not pruned"; fi
 ok "git worktree pruned"
 assert_contains "$(cat "$WT_SHIM_LOG")" "delete -Oy feat-x" "ddev project deleted"
+
+# `git worktree remove` tolerates a missing directory only while the .git/worktrees admin
+# entry is still there; once anything has pruned it (git gc does, so does a manual
+# `git worktree` fallback) it fails with "is not a working tree". Destroy used to abort there,
+# before the manifest entry was struck, so the record lived on and counted against
+# max_concurrent with nothing behind it.
+step "wt destroy tolerates a worktree directory that is already gone"
+$WT --json new feat/vanish --task "already gone" >/dev/null || fail "creating feat-vanish failed"
+rm -rf ".wt/worktrees/feat-vanish"
+git worktree prune
+assert_contains "$($WT --json destroy feat-vanish)" '"destroyed":"feat-vanish"' "destroy reported success"
+if grep -q '"feat-vanish"' .wt/manifest.json; then fail "feat-vanish still in manifest"; fi
+ok "manifest cleaned"
+if git -C . worktree list | grep -q "feat-vanish"; then fail "stale git worktree admin entry survived"; fi
+ok "git worktree pruned"

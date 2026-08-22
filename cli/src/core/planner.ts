@@ -415,7 +415,19 @@ export function planDestroy(ctx: Ctx, keepBranch: boolean): Step[] {
     { title: `ddev delete ${rec.name} (snapshots too)`, async up(c) { if (rec.level >= 2) await ddev.delete(c.run, rec.name); } },
     { title: "remove generated files", async up(c) { if (!c.dryRun) for (const f of rec.createdFiles) await rm(f, { force: true }).catch(() => {}); } },
     { title: "remove baseline", async up(c) { if (!c.dryRun) await rm(path.join(repoRoot, ".wt", "baseline", rec.name), { recursive: true, force: true }); } },
-    { title: `git worktree remove ${path.relative(repoRoot, rec.path)}`, async up(c) { await c.run("git", ["worktree", "remove", "--force", rec.path], { cwd: repoRoot }); } },
+    {
+      // Destroy has to be idempotent. A worktree whose directory is already gone — removed by
+      // hand, or by an earlier destroy that died after this step — would otherwise fail here,
+      // and because the caller only strikes the manifest entry once every step succeeds, the
+      // record would survive and keep counting against max_concurrent forever.
+      title: `git worktree remove ${path.relative(repoRoot, rec.path)}`,
+      async up(c) {
+        const alreadyGone = !c.dryRun && !existsSync(rec.path);
+        await c.run("git", ["worktree", "remove", "--force", rec.path], { cwd: repoRoot, allowFail: alreadyGone });
+        // Drops the stale .git/worktrees admin entry a vanished directory leaves behind.
+        if (alreadyGone) await c.run("git", ["worktree", "prune"], { cwd: repoRoot, allowFail: true });
+      },
+    },
     ...(keepBranch ? [] : [{ title: `git branch -D ${rec.branch}`, async up(c: Ctx) { await c.run("git", ["branch", "-D", rec.branch], { cwd: repoRoot, allowFail: true }); } }]),
   ];
 }
