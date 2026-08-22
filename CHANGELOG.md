@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.4.0
+
+Found the same way as 0.3.0's bugs: by running `wt` against a real project rather than the
+shim. A `wt destroy` took the whole DDEV project down with it, and no shim-based test could
+have seen it — a fake `ddev start` has no Mutagen session to wedge.
 
 ### Fixed
 

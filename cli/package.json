@@ -1,6 +1,6 @@
 {
   "name": "@jhayunu/wt",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Per-worktree DDEV environments for AI agents (WordPress, Laravel, React)",
   "type": "module",
   "bin": {
@@ -33,10 +33,10 @@
   "dependencies": {
     "commander": "^12.1.0",
     "execa": "^9.3.0",
-    "yaml": "^2.5.0",
-    "zod": "^3.23.8",
+    "picocolors": "^1.0.1",
     "proper-lockfile": "^4.1.2",
-    "picocolors": "^1.0.1"
+    "yaml": "^2.5.0",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.5.0",
