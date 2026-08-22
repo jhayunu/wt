@@ -1,6 +1,6 @@
 {
   "name": "@jhayunu/wt",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Per-worktree DDEV environments for AI agents (WordPress, Laravel, React)",
   "type": "module",
   "bin": {

@@ -1,5 +1,40 @@
 # Changelog
 
+## 0.5.0
+
+Both of these came from watching `wt` used across many sessions rather than from a single
+failing run: the trigger asked for an environment far more often than the work justified, and
+a destroy that could not finish left a record behind that nothing would ever clean up.
+
+### Changed
+
+- **A worktree is no longer the answer to every edit.** The rule written into `CLAUDE.md`
+  said any plan that edits files starts with `wt new`, and told the agent not to ask — so a
+  typo, a comment or a version bump each got a worktree, and from level 2 up a DDEV
+  environment to raise and tear down. The threshold is now what the isolation is actually
+  for: work that *runs* something (a test suite, migrations, the app) or spans more than a
+  file or two. Small self-contained edits stay in the main checkout, and a borderline call
+  asks first. `Never edit files in the main checkout` became `never run migrations or a test
+  suite against the main checkout`, which is the part that actually collides between
+  sessions.
+- **`wt init` and `wt skill install` now refresh an existing rule block in place.** They only
+  ever appended, and skipped the file entirely once the marker was present, so a tightened
+  rule could never reach an install that had already run. The block is delimited by a closing
+  `<!-- /wt:worktrees -->` marker and rewritten between the two; blocks written before that
+  marker existed are replaced up to the next heading, so a section you added underneath is
+  left alone. Re-run either command to pick up this release's wording.
+
+### Fixed
+
+- **`wt destroy` could not finish if the worktree directory was already gone, and the leftover
+  manifest entry counted against `max_concurrent` forever.** `git worktree remove` tolerates a
+  missing directory only while the `.git/worktrees` admin entry survives; once anything has
+  pruned it — `git gc` does, and so does removing the tree by hand — it fails with
+  `is not a working tree`. Destroy aborted there, before the manifest entry was struck, so the
+  record survived with nothing behind it and the next `wt new` refused to create anything. The
+  removal now tolerates an already-absent path and prunes the stale entry; a removal that fails
+  with the tree still on disk is still treated as a real error.
+
 ## 0.4.0
 
 Found the same way as 0.3.0's bugs: by running `wt` against a real project rather than the

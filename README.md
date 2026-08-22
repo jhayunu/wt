@@ -225,7 +225,7 @@ all of this. After any change: `ddev mutagen reset && ddev restart`.
 
 ## Maturity
 
-v0.4, and honest about what that means:
+v0.5, and honest about what that means:
 
 - **Verified on real DDEV** (v1.25.1):
   - levels 0 and 1 on a Laravel + React project — creation, tool routing into main's
